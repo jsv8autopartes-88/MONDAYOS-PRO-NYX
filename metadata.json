@@ -1,0 +1,9 @@
+{
+  "name": "OmniDash AI: The Editable Dashboard",
+  "description": "A fully customizable, code-editable dashboard with AI assistant, real-time metrics, and cross-platform synchronization capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
