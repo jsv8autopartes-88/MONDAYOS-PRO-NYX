@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Widget, ActionLog, AppState, Asset, AppFile } from '../types';
+import { auth, db, signInWithGoogle, logout as firebaseLogout, handleFirestoreError, OperationType } from '../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
 
 interface DashboardContextType extends AppState {
+  user: User | null;
+  isAuthReady: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   addWidget: (widget: Partial<Widget>) => void;
   updateWidget: (id: string, updates: Partial<Widget>) => void;
   deleteWidget: (id: string) => void;
@@ -94,6 +101,8 @@ const INITIAL_WIDGETS: Widget[] = [
 ];
 
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -125,6 +134,70 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Sync with Firestore when user is logged in
+  useEffect(() => {
+    if (!user) return;
+
+    const userDocRef = doc(db, 'users', user.uid);
+    
+    // Listen to user profile (theme, notes, etc)
+    const unsubProfile = onSnapshot(userDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setState(prev => ({
+          ...prev,
+          theme: data.theme || prev.theme,
+          notes: data.notes || prev.notes,
+          isCarMode: data.isCarMode ?? prev.isCarMode,
+          viewMode: data.viewMode || prev.viewMode,
+          aiContext: data.aiContext || prev.aiContext
+        }));
+      } else {
+        // Initialize user doc if it doesn't exist
+        setDoc(userDocRef, {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          theme: state.theme,
+          notes: state.notes,
+          isCarMode: state.isCarMode,
+          viewMode: state.viewMode,
+          aiContext: state.aiContext,
+          updatedAt: serverTimestamp()
+        }).catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`));
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
+
+    // Listen to widgets
+    const widgetsColRef = collection(db, 'users', user.uid, 'widgets');
+    const unsubWidgets = onSnapshot(widgetsColRef, (snapshot) => {
+      const widgetsData = snapshot.docs.map(doc => doc.data() as Widget);
+      setState(prev => ({ ...prev, widgets: widgetsData.length > 0 ? widgetsData : prev.widgets }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/widgets`));
+
+    // Listen to files
+    const filesColRef = collection(db, 'users', user.uid, 'files');
+    const unsubFiles = onSnapshot(filesColRef, (snapshot) => {
+      const filesData = snapshot.docs.map(doc => doc.data() as AppFile);
+      setState(prev => ({ ...prev, files: filesData.length > 0 ? filesData : prev.files }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/files`));
+
+    return () => {
+      unsubProfile();
+      unsubWidgets();
+      unsubFiles();
+    };
+  }, [user]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     // Apply theme to document root
     document.documentElement.style.setProperty('--color-neon-lime', state.theme.primary);
@@ -147,9 +220,18 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   }, []);
 
+  const login = async () => {
+    await signInWithGoogle();
+  };
+
+  const logout = async () => {
+    await firebaseLogout();
+  };
+
   const addWidget = (widget: Partial<Widget>) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const newWidget: Widget = {
-      id: Math.random().toString(36).substr(2, 9),
+      id,
       title: widget.title || 'New Widget',
       type: widget.type || 'custom',
       x: widget.x || 0,
@@ -160,6 +242,13 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       config: widget.config || {},
       isVisible: true
     };
+
+    if (user) {
+      const widgetDocRef = doc(db, 'users', user.uid, 'widgets', id);
+      setDoc(widgetDocRef, { ...newWidget, ownerId: user.uid, createdAt: serverTimestamp() })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/widgets/${id}`));
+    }
+
     setState(prev => {
       const newState = { ...prev, widgets: [...prev.widgets, newWidget] };
       addLog('ADD_WIDGET', `Added widget: ${newWidget.title}`, prev);
@@ -168,6 +257,11 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateWidget = (id: string, updates: Partial<Widget>) => {
+    if (user) {
+      const widgetDocRef = doc(db, 'users', user.uid, 'widgets', id);
+      updateDoc(widgetDocRef, updates)
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/widgets/${id}`));
+    }
     setState(prev => {
       const newState = {
         ...prev,
@@ -179,6 +273,11 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteWidget = (id: string) => {
+    if (user) {
+      const widgetDocRef = doc(db, 'users', user.uid, 'widgets', id);
+      deleteDoc(widgetDocRef)
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/widgets/${id}`));
+    }
     setState(prev => {
       const newState = {
         ...prev,
@@ -190,10 +289,19 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const toggleCarMode = () => {
-    setState(prev => ({ ...prev, isCarMode: !prev.isCarMode }));
+    const nextMode = !state.isCarMode;
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { isCarMode: nextMode })
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+    }
+    setState(prev => ({ ...prev, isCarMode: nextMode }));
   };
 
   const setViewMode = (mode: 'grid' | 'list') => {
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { viewMode: mode })
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+    }
     setState(prev => ({ ...prev, viewMode: mode }));
   };
 
@@ -205,6 +313,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateNotes = (notes: string) => {
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { notes })
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+    }
     setState(prev => ({ ...prev, notes }));
   };
 
@@ -234,7 +346,13 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addFile = (file: Omit<AppFile, 'id'>) => {
-    const newFile = { ...file, id: Math.random().toString(36).substr(2, 9) };
+    const id = Math.random().toString(36).substr(2, 9);
+    const newFile = { ...file, id };
+    if (user) {
+      const fileDocRef = doc(db, 'users', user.uid, 'files', id);
+      setDoc(fileDocRef, { ...newFile, ownerId: user.uid, createdAt: serverTimestamp() })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/files/${id}`));
+    }
     setState(prev => {
       const newState = { ...prev, files: [...prev.files, newFile] };
       addLog('ADD_FILE', `Added file: ${file.name}`, prev);
@@ -243,6 +361,11 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateFile = (id: string, updates: Partial<AppFile>) => {
+    if (user) {
+      const fileDocRef = doc(db, 'users', user.uid, 'files', id);
+      updateDoc(fileDocRef, updates)
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/files/${id}`));
+    }
     setState(prev => {
       const newState = {
         ...prev,
@@ -254,6 +377,11 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteFile = (id: string) => {
+    if (user) {
+      const fileDocRef = doc(db, 'users', user.uid, 'files', id);
+      deleteDoc(fileDocRef)
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/files/${id}`));
+    }
     setState(prev => {
       const newState = { ...prev, files: prev.files.filter(f => f.id !== id) };
       addLog('DELETE_FILE', `Deleted file: ${id}`, prev);
@@ -262,6 +390,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateAiContext = (context: string) => {
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { aiContext: context })
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+    }
     setState(prev => ({ ...prev, aiContext: context }));
   };
 
@@ -270,7 +402,12 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateTheme = (theme: Partial<AppState['theme']>) => {
-    setState(prev => ({ ...prev, theme: { ...prev.theme, ...theme } }));
+    const nextTheme = { ...state.theme, ...theme };
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { theme: nextTheme })
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+    }
+    setState(prev => ({ ...prev, theme: nextTheme }));
   };
 
   const addShortcut = (command: string, scriptId: string) => {
@@ -284,6 +421,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <DashboardContext.Provider value={{
       ...state,
+      user,
+      isAuthReady,
+      login,
+      logout,
       addWidget,
       updateWidget,
       deleteWidget,

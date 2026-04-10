@@ -1,0 +1,131 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Auth UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required) - User email
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - theme: map (optional) - {primary, secondary, background, cardBg}
+    //   - isCarMode: bool (optional)
+    //   - viewMode: string (optional) - 'grid' | 'list'
+    //   - notes: string (optional)
+    //   - aiContext: string (optional)
+    //   - updatedAt: timestamp (optional)
+    //
+    // Collection: users/{userId}/widgets
+    // Document ID: {widgetId}
+    // Fields:
+    //   - id: string (required)
+    //   - ownerId: string (required) - Must match parent userId
+    //   - title: string (required)
+    //   - type: string (required)
+    //   - x, y, w, h: number (required)
+    //   - code: string (required)
+    //   - config: map (optional)
+    //   - isVisible: bool (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: users/{userId}/files
+    // Document ID: {fileId}
+    // Fields:
+    //   - id: string (required)
+    //   - ownerId: string (required)
+    //   - name: string (required)
+    //   - content: string (required)
+    //   - type: string (required) - 'script' | 'md' | 'json' | 'svg'
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             (!('displayName' in data) || isValidString(data.displayName, 0, 100)) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('aiContext' in data) || data.aiContext is string);
+    }
+
+    function isValidWidget(data, userId) {
+      return data.keys().hasAll(['id', 'ownerId', 'title', 'type', 'x', 'y', 'w', 'h', 'code', 'isVisible']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.title, 1, 100) &&
+             data.type is string &&
+             data.x is number && data.y is number &&
+             data.w is number && data.h is number &&
+             data.code is string &&
+             data.isVisible is bool;
+    }
+
+    function isValidFile(data, userId) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'content', 'type']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.name, 1, 255) &&
+             data.content is string &&
+             data.type in ['script', 'md', 'json', 'svg'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      match /widgets/{widgetId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidWidget(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidWidget(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /files/{fileId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidFile(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidFile(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

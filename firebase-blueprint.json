@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user-specific settings and dashboard state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "primary": { "type": "string" },
+            "secondary": { "type": "string" },
+            "background": { "type": "string" },
+            "cardBg": { "type": "string" }
+          }
+        },
+        "isCarMode": { "type": "boolean" },
+        "viewMode": { "type": "string", "enum": ["grid", "list"] },
+        "notes": { "type": "string" },
+        "aiContext": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Widget": {
+      "title": "Widget",
+      "description": "A dashboard widget configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": { "type": "number" },
+        "h": { "type": "number" },
+        "code": { "type": "string" },
+        "config": { "type": "object" },
+        "isVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "title", "type"]
+    },
+    "AppFile": {
+      "title": "AppFile",
+      "description": "A file stored in the user's library.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["script", "md", "json", "svg"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile and global settings"
+    },
+    "/users/{userId}/widgets/{widgetId}": {
+      "schema": "Widget",
+      "description": "User's dashboard widgets"
+    },
+    "/users/{userId}/files/{fileId}": {
+      "schema": "AppFile",
+      "description": "User's library files"
+    }
+  }
+}

@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 };
 
 export const TopBar: React.FC = () => {
-  const { isCarMode, searchQuery, setSearchQuery } = useDashboard();
+  const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady } = useDashboard();
 
   return (
     <div className="h-20 border-b border-card-border flex items-center justify-between px-8 bg-card-bg/50 backdrop-blur-md">
@@ -127,16 +127,40 @@ export const TopBar: React.FC = () => {
             <Bell size={20} className="text-white/60" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-neon-lime rounded-full border-2 border-dashboard-bg" />
           </button>
+          
           <div className="flex items-center gap-3 pl-2">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-bold">Admin User</div>
-              <div className="text-[10px] text-white/40 uppercase tracking-tighter">Pro Developer</div>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-lime to-neon-blue p-[2px]">
-              <div className="w-full h-full rounded-full bg-dashboard-bg flex items-center justify-center overflow-hidden">
-                <User size={20} />
+            {!isAuthReady ? (
+              <div className="w-10 h-10 rounded-full bg-white/5 animate-pulse" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden sm:block">
+                  <div className="text-sm font-bold truncate max-w-[120px]">{user.displayName || 'User'}</div>
+                  <button 
+                    onClick={logout}
+                    className="text-[10px] text-neon-lime uppercase tracking-tighter hover:underline"
+                  >
+                    Logout
+                  </button>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-lime to-neon-blue p-[2px]">
+                  <div className="w-full h-full rounded-full bg-dashboard-bg flex items-center justify-center overflow-hidden">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={20} />
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <button 
+                onClick={login}
+                className="flex items-center gap-2 px-4 py-2 bg-neon-lime text-black rounded-full font-bold text-xs hover:bg-neon-lime/80 transition-colors"
+              >
+                <Cloud size={14} />
+                Login
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -23,8 +23,19 @@ import {
 import { cn } from './lib/utils';
 
 const DashboardContent: React.FC = () => {
-  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery } = useDashboard();
+  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady } = useDashboard();
   const [activeTab, setActiveTab] = React.useState('home');
+
+  if (!isAuthReady) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-dashboard-bg">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-neon-lime border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-widest text-white/40">Initializing OS...</p>
+        </div>
+      </div>
+    );
+  }
 
   const filteredWidgets = widgets.filter(w => {
     const query = (searchQuery || '').toLowerCase();
