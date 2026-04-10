@@ -132,31 +132,34 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
         gridRow: `span ${widget.h}`
       }}
       className={cn(
-        "glass-card group relative flex flex-col overflow-hidden transition-all duration-300",
-        isEditing ? "z-50 ring-2 ring-neon-lime" : "hover:border-neon-lime/50"
+        "glass-card group relative flex flex-col overflow-hidden transition-all duration-500",
+        isEditing ? "z-50 ring-2 ring-primary" : "hover:neon-glow hover:border-primary/30"
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-card-border bg-card-bg/50">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-white/70">{widget.title}</h3>
+      <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02]">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">{widget.title}</h3>
+        </div>
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
             onClick={() => setIsEditing(!isEditing)}
-            className="p-1 hover:text-neon-lime transition-colors"
+            className="p-1.5 hover:bg-white/5 rounded-lg text-white/40 hover:text-primary transition-all"
           >
-            {isEditing ? <Maximize2 size={14} /> : <Code size={14} />}
+            {isEditing ? <Maximize2 size={12} /> : <Code size={12} />}
           </button>
           <button 
             onClick={() => deleteWidget(widget.id)}
-            className="p-1 hover:text-red-500 transition-colors"
+            className="p-1.5 hover:bg-white/5 rounded-lg text-white/40 hover:text-neon-pink transition-all"
           >
-            <Trash2 size={14} />
+            <Trash2 size={12} />
           </button>
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 p-4 relative flex flex-col">
+      <div className="flex-1 p-6 relative flex flex-col">
         {isEditing ? (
           <div className="absolute inset-0 bg-dashboard-bg z-10 flex flex-col">
             <div className="flex-1 overflow-auto font-mono text-sm p-2">

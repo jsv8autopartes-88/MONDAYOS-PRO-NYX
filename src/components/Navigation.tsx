@@ -46,50 +46,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   ];
 
   return (
-    <div className="w-20 lg:w-64 bg-card-bg border-r border-card-border flex flex-col h-full transition-all duration-300">
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-10 h-10 bg-neon-lime rounded-xl flex items-center justify-center shadow-lg shadow-neon-lime/20">
-          <Zap className="text-black" size={24} fill="currentColor" />
-        </div>
-        <h1 className="hidden lg:block font-bold text-xl tracking-tighter">OMNIDASH<span className="text-neon-lime">AI</span></h1>
+    <div className="w-[82px] lg:w-64 bg-black border-r border-white/5 flex flex-col h-full transition-all duration-300 shadow-[10px_0_30px_-15px_rgba(207,248,12,0.05)]">
+      <div className="p-6 flex flex-col gap-1 items-center lg:items-start">
+        <h2 className="text-primary font-black tracking-[0.2em] uppercase text-[10px] lg:text-sm text-center lg:text-left">SYSTEM_ADMIN</h2>
+        <p className="text-neutral-600 font-bold text-[8px] lg:text-[10px] tracking-[0.2em] hidden lg:block">v4.0.2-ALPHA</p>
       </div>
 
-      <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto custom-scrollbar font-bold tracking-widest uppercase text-[11px]">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-300 group",
-              activeTab === item.id ? "bg-neon-lime/10 text-neon-lime" : "hover:bg-white/5 text-white/60 hover:text-white"
+              "w-full flex items-center justify-center lg:justify-start gap-4 py-4 px-0 lg:px-6 transition-all duration-300 group",
+              activeTab === item.id 
+                ? "text-primary bg-gradient-to-r from-primary/10 to-transparent border-l-4 border-primary translate-x-1" 
+                : "text-neutral-600 hover:text-neutral-300 hover:bg-white/5"
             )}
           >
-            <item.icon size={20} className={cn(activeTab === item.id ? "text-neon-lime" : "text-white/60 group-hover:text-neon-lime")} />
-            <span className="hidden lg:block text-sm font-medium">
+            <item.icon size={24} className={cn(activeTab === item.id ? "text-primary" : "text-neutral-600 group-hover:text-primary")} />
+            <span className="hidden lg:block">
               {item.label}
             </span>
           </button>
         ))}
       </nav>
 
-      <div className="p-4 space-y-4 border-t border-card-border">
+      <div className="p-4 space-y-4 border-t border-white/5">
         <button
           onClick={toggleCarMode}
           className={cn(
-            "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-300",
-            isCarMode ? "bg-neon-lime text-black shadow-lg shadow-neon-lime/20" : "bg-white/5 text-white/60 hover:bg-white/10"
+            "w-full flex items-center justify-center lg:justify-start gap-4 p-3 rounded-xl transition-all duration-300",
+            isCarMode ? "active-glow" : "bg-white/5 text-white/60 hover:bg-white/10"
           )}
         >
-          <Car size={20} />
-          <span className="hidden lg:block text-sm font-bold uppercase tracking-widest">Car Mode</span>
+          <Car size={24} />
+          <span className="hidden lg:block text-[11px] font-bold uppercase tracking-widest">Car Mode</span>
         </button>
 
         <button
           onClick={() => addWidget({})}
-          className="w-full flex items-center justify-center gap-2 p-3 bg-white text-black rounded-xl font-bold hover:bg-neon-lime transition-colors"
+          className="w-full flex items-center justify-center lg:justify-start gap-2 p-3 bg-white/5 border border-white/10 hover:border-primary/50 text-white rounded-xl font-bold text-[11px] uppercase tracking-widest transition-all active:scale-95"
         >
-          <Plus size={20} />
-          <span className="hidden lg:block text-sm">Add Widget</span>
+          <Plus size={24} />
+          <span className="hidden lg:block">New Instance</span>
         </button>
       </div>
     </div>
@@ -100,68 +100,64 @@ export const TopBar: React.FC = () => {
   const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady } = useDashboard();
 
   return (
-    <div className="h-20 border-b border-card-border flex items-center justify-between px-8 bg-card-bg/50 backdrop-blur-md">
-      <div className="flex items-center gap-6 flex-1 max-w-2xl">
+    <div className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-black/40 backdrop-blur-xl sticky top-0 z-50 shadow-[0_0_15px_rgba(207,248,12,0.1)]">
+      <div className="flex items-center gap-3">
+        <Zap className="text-primary" size={20} fill="currentColor" />
+        <h1 className="text-primary font-black italic tracking-tighter text-lg">MONDAYOS-PRO-NYX</h1>
+      </div>
+
+      <div className="flex items-center gap-6 flex-1 max-w-md mx-8">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={14} />
           <input 
             type="text" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search functions, files, or ask AI..."
-            className="w-full bg-white/5 border border-card-border rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-neon-lime/50 transition-colors"
+            placeholder="QUERY_SYSTEM..."
+            className="w-full bg-black border border-white/5 rounded-lg py-1.5 pl-10 pr-4 text-xs font-mono text-on-surface-variant focus:outline-none focus:border-primary/50 transition-colors"
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
-        <div className="flex flex-col items-end">
-          <div className="text-xs font-bold text-neon-lime uppercase tracking-widest">AI Status</div>
-          <AIWave isListening={true} />
-        </div>
+      <div className="flex items-center gap-4">
+        <button className="relative p-2 text-neutral-400 hover:text-primary transition-colors rounded-full active:scale-95">
+          <Bell size={18} />
+          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-neon-pink rounded-full" />
+        </button>
         
-        <div className="h-8 w-[1px] bg-card-border" />
-
-        <div className="flex items-center gap-4">
-          <button className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
-            <Bell size={20} className="text-white/60" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-neon-lime rounded-full border-2 border-dashboard-bg" />
-          </button>
-          
-          <div className="flex items-center gap-3 pl-2">
-            {!isAuthReady ? (
-              <div className="w-10 h-10 rounded-full bg-white/5 animate-pulse" />
-            ) : user ? (
-              <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <div className="text-sm font-bold truncate max-w-[120px]">{user.displayName || 'User'}</div>
-                  <button 
-                    onClick={logout}
-                    className="text-[10px] text-neon-lime uppercase tracking-tighter hover:underline"
-                  >
-                    Logout
-                  </button>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-lime to-neon-blue p-[2px]">
-                  <div className="w-full h-full rounded-full bg-dashboard-bg flex items-center justify-center overflow-hidden">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={20} />
-                    )}
-                  </div>
-                </div>
+        <div className="flex items-center gap-3 pl-2">
+          {!isAuthReady ? (
+            <div className="w-8 h-8 rounded-full bg-white/5 animate-pulse" />
+          ) : user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="text-[10px] font-bold text-white truncate max-w-[100px] uppercase tracking-tighter">{user.displayName || 'Operator'}</div>
+                <button 
+                  onClick={logout}
+                  className="text-[9px] text-primary uppercase tracking-widest hover:underline block"
+                >
+                  Logout
+                </button>
               </div>
-            ) : (
-              <button 
-                onClick={login}
-                className="flex items-center gap-2 px-4 py-2 bg-neon-lime text-black rounded-full font-bold text-xs hover:bg-neon-lime/80 transition-colors"
-              >
-                <Cloud size={14} />
-                Login
-              </button>
-            )}
-          </div>
+              <div className="w-8 h-8 rounded-full border border-primary/30 overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-dashboard-bg flex items-center justify-center">
+                    <User size={16} className="text-primary" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={login}
+              className="flex items-center gap-2 px-4 py-1.5 bg-primary text-black rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-primary/80 transition-all active:scale-95 shadow-[0_0_15px_rgba(207,248,12,0.3)]"
+            >
+              <Cloud size={12} />
+              Login
+            </button>
+          )}
         </div>
       </div>
     </div>

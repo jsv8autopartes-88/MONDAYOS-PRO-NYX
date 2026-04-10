@@ -47,56 +47,62 @@ export const LinksPanel: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-neon-blue/20 rounded-lg">
-          <Globe className="text-neon-blue" size={24} />
+    <div className="h-full flex flex-col p-6 max-w-5xl mx-auto gap-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/20 rounded-lg">
+            <Globe className="text-primary" size={24} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight uppercase">Web Mirror & Links</h2>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Quick Access Bookmarks</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold tracking-tight uppercase">Web Mirror & Links</h2>
-          <p className="text-[10px] text-white/40 uppercase tracking-widest">Quick Access Bookmarks</p>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Live Sync</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
         </div>
       </div>
 
-      <form onSubmit={handleAdd} className="glass-card p-4 mb-6 flex gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Title</label>
+      <form onSubmit={handleAdd} className="glass-card p-6 flex flex-wrap md:flex-nowrap gap-6 items-end border-white/5 bg-white/[0.02]">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-white/40 mb-2">Title</label>
           <input 
             type="text" 
             value={newTitle}
             onChange={e => setNewTitle(e.target.value)}
-            className="w-full bg-white/5 border border-card-border rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neon-blue/50 transition-colors"
+            className="w-full bg-black border border-white/10 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-primary/50 transition-colors"
             placeholder="e.g. My Server"
           />
         </div>
-        <div className="flex-1">
-          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">URL</label>
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-[10px] uppercase tracking-[0.2em] font-black text-white/40 mb-2">URL</label>
           <input 
             type="text" 
             value={newUrl}
             onChange={e => setNewUrl(e.target.value)}
-            className="w-full bg-white/5 border border-card-border rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neon-blue/50 transition-colors"
+            className="w-full bg-black border border-white/10 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-primary/50 transition-colors"
             placeholder="e.g. example.com"
           />
         </div>
         <button 
           type="submit"
-          className="bg-neon-blue text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-neon-blue/80 transition-colors flex items-center gap-2"
+          className="bg-primary text-black px-8 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary/80 transition-all active:scale-95 shadow-[0_0_15px_rgba(207,248,12,0.3)]"
         >
-          <Plus size={16} /> Add
+          Add Link
         </button>
       </form>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {links.map(link => (
-          <div key={link.id} className="glass-card p-4 flex items-center justify-between group hover:border-neon-blue/50 transition-colors">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center shrink-0">
-                <Globe size={16} className="text-white/60" />
+          <div key={link.id} className="glass-card p-6 flex items-center justify-between group hover:neon-glow hover:border-primary/30 transition-all duration-500 border-white/5 bg-white/[0.02]">
+            <div className="flex items-center gap-4 overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                <Globe size={18} className="text-white/40 group-hover:text-primary transition-colors" />
               </div>
               <div className="truncate">
-                <h4 className="font-bold text-sm truncate">{link.title}</h4>
-                <p className="text-[10px] text-white/40 truncate">{link.url}</p>
+                <h4 className="font-bold text-sm truncate uppercase tracking-tight">{link.title}</h4>
+                <p className="text-[10px] text-white/30 truncate font-mono">{link.url}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -104,13 +110,13 @@ export const LinksPanel: React.FC = () => {
                 href={link.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="p-1.5 hover:bg-white/10 rounded text-neon-blue transition-colors"
+                className="p-2 hover:bg-white/5 rounded-lg text-primary transition-all"
               >
                 <ExternalLink size={14} />
               </a>
               <button 
                 onClick={() => handleDelete(link.id)}
-                className="p-1.5 hover:bg-red-500/20 rounded text-red-500 transition-colors"
+                className="p-2 hover:bg-white/5 rounded-lg text-neon-pink transition-all"
               >
                 <Trash2 size={14} />
               </button>
