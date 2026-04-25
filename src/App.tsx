@@ -9,6 +9,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { ToolsPanel } from './components/ToolsPanel';
 import { LinksPanel } from './components/LinksPanel';
 import { FileManagerPanel } from './components/FileManagerPanel';
+import { AgentControllerPanel } from './components/AgentControllerPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutGrid, 
@@ -18,12 +19,13 @@ import {
   Database, 
   Globe,
   History,
-  Terminal as TerminalIcon
+  Terminal as TerminalIcon,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
 const DashboardContent: React.FC = () => {
-  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget } = useDashboard();
+  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents } = useDashboard();
   const [activeTab, setActiveTab] = React.useState('home');
 
   if (!isAuthReady) {
@@ -159,38 +161,49 @@ const DashboardContent: React.FC = () => {
                 {/* Lower Section: Agents and Logs */}
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/60 ml-2">Nyx Agents</h3>
+                    <div className="flex items-center justify-between ml-2">
+                       <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/60">Nyx Agents</h3>
+                       <button 
+                         onClick={() => setActiveTab('agents')}
+                         className="text-[10px] text-primary font-bold hover:underline tracking-widest uppercase"
+                       >
+                         Manage All
+                       </button>
+                    </div>
                     <div className="space-y-3">
-                      <div className="glass-card hover:bg-white/5 transition-all p-4 rounded-2xl flex items-center justify-between cursor-pointer group">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <Cpu className="text-primary text-xl" size={20} />
+                      {agents.length > 0 ? agents.slice(0, 2).map(agent => (
+                        <div 
+                          key={agent.id}
+                          onClick={() => {
+                            setActiveTab('agents');
+                          }}
+                          className="glass-card hover:bg-white/5 transition-all p-4 rounded-2xl flex items-center justify-between cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                              <Cpu className="text-primary text-xl" size={20} />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-white uppercase">{agent.name}</div>
+                              <div className={cn(
+                                "text-[10px] font-medium uppercase",
+                                agent.status === 'online' ? "text-primary/70" : "text-white/30"
+                              )}>{agent.status === 'online' ? 'ACTIVE_LINK' : 'OFFLINE'}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-sm font-bold text-white">NYX_AUTO_01</div>
-                            <div className="text-[10px] text-primary/70 font-medium">OPTIMIZING</div>
-                          </div>
+                          <ChevronRight className="text-on-surface-variant/40 group-hover:text-primary transition-colors" size={16} />
                         </div>
-                        <List className="text-on-surface-variant/40 group-hover:text-primary transition-colors" size={16} />
-                      </div>
-                      <div className="glass-card hover:bg-white/5 transition-all p-4 rounded-2xl flex items-center justify-between cursor-pointer group">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                            <Database className="text-on-surface-variant text-xl" size={20} />
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold text-white">SENTINEL_SEC</div>
-                            <div className="text-[10px] text-on-surface-variant font-medium">MONITORING</div>
-                          </div>
+                      )) : (
+                        <div className="glass-card p-6 text-center opacity-40 border-dashed">
+                          <p className="text-[10px] uppercase font-bold tracking-widest">No agents connected</p>
                         </div>
-                        <List className="text-on-surface-variant/40 group-hover:text-primary transition-colors" size={16} />
-                      </div>
+                      )}
                     </div>
                     <button 
-                      onClick={() => addWidget({})}
+                      onClick={() => setActiveTab('agents')}
                       className="w-full py-4 bg-white/5 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
                     >
-                      + New Instance
+                      + Connect Agent
                     </button>
                   </div>
                   <div className="glass-card rounded-2xl p-6 flex flex-col">
@@ -357,6 +370,18 @@ const DashboardContent: React.FC = () => {
                 className="h-full"
               >
                 <FileManagerPanel />
+              </motion.div>
+            )}
+
+            {activeTab === 'agents' && (
+              <motion.div 
+                key="agents"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <AgentControllerPanel />
               </motion.div>
             )}
 

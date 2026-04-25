@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Widget, ActionLog, AppState, Asset, AppFile } from '../types';
+import { Widget, ActionLog, AppState, Asset, AppFile, RemoteAgent, AgentCommand, AgentMission, AgentSkill } from '../types';
 import { auth, db, signInWithGoogle, logout as firebaseLogout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -28,6 +28,14 @@ interface DashboardContextType extends AppState {
   updateTheme: (theme: Partial<AppState['theme']>) => void;
   addShortcut: (command: string, scriptId: string) => void;
   removeShortcut: (command: string) => void;
+  sendCommand: (agentId: string, cmd: string, args?: any[]) => Promise<void>;
+  deleteAgent: (agentId: string) => Promise<void>;
+  addMission: (mission: Omit<AgentMission, 'id' | 'createdAt'>) => void;
+  updateMission: (id: string, updates: Partial<AgentMission>) => void;
+  deleteMission: (id: string) => void;
+  addSkill: (skill: Omit<AgentSkill, 'id'>) => void;
+  updateSkill: (id: string, updates: Partial<AgentSkill>) => void;
+  deleteSkill: (id: string) => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -114,7 +122,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         aiContext: parsed.aiContext || 'You are OmniDash AI, a helpful assistant integrated into a highly customizable dashboard. The user can edit widgets using JavaScript.',
         searchQuery: parsed.searchQuery || '',
         theme: parsed.theme || { primary: '#d4ff00', secondary: '#00f0ff', background: '#0a0a0c', cardBg: '#151619' },
-        shortcuts: parsed.shortcuts || []
+        shortcuts: parsed.shortcuts || [],
+        agents: parsed.agents || [],
+        missions: parsed.missions || [],
+        skills: parsed.skills || []
       };
     }
     return {
@@ -126,6 +137,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       notes: '',
       assets: [],
       files: [],
+      agents: [],
+      missions: [],
+      skills: [],
       aiContext: 'You are OmniDash AI, a helpful assistant integrated into a highly customizable dashboard. The user can edit widgets using JavaScript.',
       searchQuery: '',
       theme: { primary: '#d4ff00', secondary: '#00f0ff', background: '#0a0a0c', cardBg: '#151619' },
@@ -190,10 +204,55 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setState(prev => ({ ...prev, files: filesData.length > 0 ? filesData : prev.files }));
     }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/files`));
 
+    // Listen to agents
+    const agentsColRef = collection(db, 'users', user.uid, 'agents');
+    const unsubAgents = onSnapshot(agentsColRef, (snapshot) => {
+      const agentsData = snapshot.docs.map(doc => doc.data() as RemoteAgent);
+      setState(prev => ({ ...prev, agents: agentsData }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/agents`));
+
+    // Listen to missions
+    const missionsColRef = collection(db, 'users', user.uid, 'missions');
+    const unsubMissions = onSnapshot(missionsColRef, (snapshot) => {
+      const missionsData = snapshot.docs.map(doc => doc.data() as AgentMission);
+      if (missionsData.length === 0) {
+        addMission({
+          title: 'Initialize_Exponential_Core',
+          goal: 'Bootstrap the unified agent architecture and establish local node uplink.',
+          status: 'active',
+          subtasks: [
+            { id: 't1', description: 'Download Local Setup from Settings', status: 'pending' },
+            { id: 't2', description: 'Execute NYX_OS_LAUNCHER.bat on Host', status: 'pending' },
+            { id: 't3', description: 'Establish First Auth Handshake', status: 'pending' }
+          ]
+        });
+      }
+      setState(prev => ({ ...prev, missions: missionsData }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/missions`));
+
+    // Listen to skills
+    const skillsColRef = collection(db, 'users', user.uid, 'skills');
+    const unsubSkills = onSnapshot(skillsColRef, (snapshot) => {
+      const skillsData = snapshot.docs.map(doc => doc.data() as AgentSkill);
+      if (skillsData.length === 0) {
+        // Initialize default skills
+        const defaultSkills: Omit<AgentSkill, 'id'>[] = [
+          { name: 'Unified_Chief_Executive', description: 'Task delegation and multi-agent coordination core.', code: 'module:exec:calc', category: 'system' },
+          { name: 'Self_Operating_Vision', description: 'Advanced screen capture and UI element detection.', code: 'module:vision', category: 'vision' },
+          { name: 'OS_Symphony_Orchestrator', description: 'Low-level system automation and event scheduling.', code: 'module:system', category: 'system' }
+        ];
+        defaultSkills.forEach(s => addSkill(s));
+      }
+      setState(prev => ({ ...prev, skills: skillsData }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/skills`));
+
     return () => {
       unsubProfile();
       unsubWidgets();
       unsubFiles();
+      unsubAgents();
+      unsubMissions();
+      unsubSkills();
     };
   }, [user]);
 
@@ -418,6 +477,94 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => ({ ...prev, shortcuts: prev.shortcuts.filter(s => s.command !== command) }));
   };
 
+  const sendCommand = async (agentId: string, cmd: string, args: any[] = []) => {
+    if (!user) return;
+    const commandId = Math.random().toString(36).substr(2, 9);
+    const commandDocRef = doc(db, 'users', user.uid, 'agents', agentId, 'commands', commandId);
+    
+    const command: AgentCommand = {
+      id: commandId,
+      cmd,
+      args,
+      status: 'pending',
+      createdAt: Date.now()
+    };
+
+    await setDoc(commandDocRef, command)
+      .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/agents/${agentId}/commands/${commandId}`));
+    
+    addLog('AGENT_COMMAND_SENT', `Sent command [${cmd}] to agent: ${agentId}`);
+  };
+
+  const deleteAgent = async (agentId: string) => {
+    if (!user) return;
+    const agentDocRef = doc(db, 'users', user.uid, 'agents', agentId);
+    await deleteDoc(agentDocRef)
+      .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/agents/${agentId}`));
+    addLog('AGENT_DELETED', `Removed agent: ${agentId}`);
+  };
+
+  const addMission = (mission: Omit<AgentMission, 'id' | 'createdAt'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newMission: AgentMission = { ...mission, id, createdAt: Date.now() };
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'missions', id), { ...newMission, ownerId: user.uid })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/missions/${id}`));
+    }
+    setState(prev => ({ ...prev, missions: [...prev.missions, newMission] }));
+    addLog('MISSION_ADDED', `New mission started: ${mission.title}`);
+  };
+
+  const updateMission = (id: string, updates: Partial<AgentMission>) => {
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid, 'missions', id), updates)
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/missions/${id}`));
+    }
+    setState(prev => ({
+      ...prev,
+      missions: prev.missions.map(m => m.id === id ? { ...m, ...updates } : m)
+    }));
+  };
+
+  const deleteMission = (id: string) => {
+    if (user) {
+      deleteDoc(doc(db, 'users', user.uid, 'missions', id))
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/missions/${id}`));
+    }
+    setState(prev => ({ ...prev, missions: prev.missions.filter(m => m.id !== id) }));
+  };
+
+  const addSkill = (skill: Omit<AgentSkill, 'id'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newSkill: AgentSkill = { ...skill, id };
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'skills', id), { ...newSkill, ownerId: user.uid })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/skills/${id}`));
+    }
+    setState(prev => ({ ...prev, skills: [...prev.skills, newSkill] }));
+    addLog('SKILL_ADDED', `New capability unlocked: ${skill.name}`);
+  };
+
+  const updateSkill = (id: string, updates: Partial<AgentSkill>) => {
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid, 'skills', id), updates)
+        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/skills/${id}`));
+    }
+    setState(prev => ({
+      ...prev,
+      skills: prev.skills.map(s => s.id === id ? { ...s, ...updates } : s)
+    }));
+    addLog('SKILL_EVOLVED', `Skill [${id}] undergone optimization.`);
+  };
+
+  const deleteSkill = (id: string) => {
+    if (user) {
+      deleteDoc(doc(db, 'users', user.uid, 'skills', id))
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/skills/${id}`));
+    }
+    setState(prev => ({ ...prev, skills: prev.skills.filter(s => s.id !== id) }));
+  };
+
   return (
     <DashboardContext.Provider value={{
       ...state,
@@ -443,7 +590,15 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSearchQuery,
       updateTheme,
       addShortcut,
-      removeShortcut
+      removeShortcut,
+      sendCommand,
+      deleteAgent,
+      addMission,
+      updateMission,
+      deleteMission,
+      addSkill,
+      updateSkill,
+      deleteSkill
     }}>
       {children}
     </DashboardContext.Provider>

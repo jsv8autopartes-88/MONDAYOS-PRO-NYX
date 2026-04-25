@@ -18,7 +18,8 @@ import {
   PenTool,
   Zap,
   Globe,
-  Folder
+  Folder,
+  Activity
 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
@@ -35,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const navItems = [
     { icon: Home, label: 'Dashboard', id: 'home' },
     { icon: MessageSquare, label: 'AI Assistant', id: 'ai' },
+    { icon: Activity, label: 'Nodes', id: 'agents' },
     { icon: Folder, label: 'Library', id: 'files' },
     { icon: FileText, label: 'Notes', id: 'notes' },
     { icon: Globe, label: 'Web Links', id: 'links' },

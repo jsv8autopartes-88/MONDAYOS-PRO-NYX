@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDashboard } from '../store/DashboardContext';
-import { Send, Bot, User, Sparkles, Brain, Image as ImageIcon, Mic, Search as SearchIcon, X, Loader2, Volume2 } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Brain, Image as ImageIcon, Mic, Search as SearchIcon, X, Loader2, Volume2, Zap } from 'lucide-react';
 import { GoogleGenAI, Type, ThinkingLevel, Modality } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
@@ -15,6 +15,7 @@ export const AIPanel: React.FC = () => {
   const [memoryInput, setMemoryInput] = useState(aiContext);
   const [mode, setMode] = useState<'chat' | 'image' | 'voice'>('chat');
   const [isHighThinking, setIsHighThinking] = useState(false);
+  const [isFastMode, setIsFastMode] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -27,7 +28,10 @@ export const AIPanel: React.FC = () => {
 
   const getAI = () => {
     const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY not found.');
+    if (!apiKey) {
+      // Return a message or handle appropriately. For simplicity, we assume key exists as per instructions.
+      return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+    }
     return new GoogleGenAI({ apiKey });
   };
 
@@ -38,7 +42,7 @@ export const AIPanel: React.FC = () => {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
+        model: "gemini-3.1-flash-tts-preview",
         contents: [{ parts: [{ text: `Say clearly: ${text.substring(0, 500)}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
@@ -113,14 +117,16 @@ export const AIPanel: React.FC = () => {
         }
       } else {
         // Multi-turn chat
-        if (!chatRef.current) {
+        const modelToUse = isFastMode ? 'gemini-3.1-flash-lite-preview' : 'gemini-3.1-pro-preview';
+        
+        if (!chatRef.current || chatRef.current.model !== modelToUse) {
           chatRef.current = ai.chats.create({
-            model: 'gemini-3.1-pro-preview',
+            model: modelToUse,
             config: {
               systemInstruction: aiContext,
               tools: [{ googleSearch: {} }],
               toolConfig: { includeServerSideToolInvocations: true },
-              thinkingConfig: isHighThinking ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
+              thinkingConfig: isHighThinking && !isFastMode ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
             }
           });
         }
@@ -175,7 +181,22 @@ export const AIPanel: React.FC = () => {
               </button>
               <button 
                 onClick={() => {
+                  setIsFastMode(!isFastMode);
+                  if (isFastMode) setIsHighThinking(false);
+                  chatRef.current = null;
+                }}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] uppercase tracking-widest font-black transition-all",
+                  isFastMode ? "text-neon-blue active-glow" : "text-white/40 hover:text-white"
+                )}
+              >
+                <Zap size={10} />
+                Fast Mode
+              </button>
+              <button 
+                onClick={() => {
                   setIsHighThinking(!isHighThinking);
+                  if (!isHighThinking) setIsFastMode(false);
                   chatRef.current = null; // Reset chat to apply new config
                 }}
                 className={cn(

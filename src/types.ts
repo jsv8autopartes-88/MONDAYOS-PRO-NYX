@@ -35,6 +35,49 @@ export interface AppFile {
   type: 'script' | 'md' | 'json' | 'svg';
 }
 
+export interface RemoteAgent {
+  id: string;
+  name: string;
+  status: 'online' | 'offline' | 'busy';
+  platform: string;
+  lastHeartbeat: number;
+  currentTask?: string;
+  systemInfo?: any;
+  ownerId: string;
+}
+
+export interface AgentCommand {
+  id: string;
+  cmd: string;
+  args?: any[];
+  status: 'pending' | 'received' | 'executing' | 'completed' | 'failed';
+  result?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  category: 'system' | 'automation' | 'web' | 'vision';
+  evolvedFrom?: string;
+  evolutionCount?: number;
+}
+
+export interface AgentMission {
+  id: string;
+  title: string;
+  goal: string;
+  status: 'active' | 'completed' | 'paused' | 'failed';
+  subtasks: { id: string; description: string; status: 'pending' | 'done' }[];
+  feedback?: string[];
+  environment?: Record<string, any>;
+  agentId?: string;
+  createdAt: number;
+}
+
 export interface AppState {
   widgets: Widget[];
   logs: ActionLog[];
@@ -44,6 +87,9 @@ export interface AppState {
   notes: string;
   assets: Asset[];
   files: AppFile[];
+  agents: RemoteAgent[];
+  missions: AgentMission[];
+  skills: AgentSkill[];
   aiContext: string;
   searchQuery: string;
   theme: {

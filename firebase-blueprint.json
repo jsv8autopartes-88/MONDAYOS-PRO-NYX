@@ -59,6 +59,52 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "ownerId", "name", "type"]
+    },
+    "RemoteAgent": {
+      "title": "RemoteAgent",
+      "description": "A remote agent controller (e.g., on Windows local app).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["online", "offline", "busy"] },
+        "platform": { "type": "string" },
+        "lastHeartbeat": { "type": "string", "format": "date-time" },
+        "currentTask": { "type": "string" },
+        "systemInfo": { "type": "object" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "name", "status", "ownerId"]
+    },
+    "AgentMission": {
+      "title": "AgentMission",
+      "description": "A high-level task or goal for one or more agents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "goal": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed", "paused", "failed"] },
+        "subtasks": { "type": "array" },
+        "agentId": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "title", "goal", "status", "ownerId"]
+    },
+    "AgentSkill": {
+      "title": "AgentSkill",
+      "description": "A reusable modular logic snippet for agents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "code": { "type": "string" },
+        "category": { "type": "string", "enum": ["system", "automation", "web", "vision"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "ownerId"]
     }
   },
   "firestore": {
@@ -73,6 +119,33 @@
     "/users/{userId}/files/{fileId}": {
       "schema": "AppFile",
       "description": "User's library files"
+    },
+    "/users/{userId}/agents/{agentId}": {
+      "schema": "RemoteAgent",
+      "description": "Remote agents connected to this account"
+    },
+    "/users/{userId}/agents/{agentId}/commands/{commandId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "cmd": { "type": "string" },
+          "args": { "type": "array" },
+          "status": { "type": "string", "enum": ["pending", "received", "executing", "completed", "failed"] },
+          "result": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Queued commands for the agent"
+    },
+    "/users/{userId}/missions/{missionId}": {
+      "schema": "AgentMission",
+      "description": "High-level goal orchestration"
+    },
+    "/users/{userId}/skills/{skillId}": {
+      "schema": "AgentSkill",
+      "description": "Modular agent capabilities library"
     }
   }
 }
