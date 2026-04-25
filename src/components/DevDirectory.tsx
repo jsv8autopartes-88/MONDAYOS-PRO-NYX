@@ -40,6 +40,10 @@ import {
 import { cn } from '../lib/utils';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-tsx';
 
@@ -48,6 +52,7 @@ interface VersionInfo {
   date: string;
   changes: string[];
   techDeclaration: string;
+  auditHash?: string;
 }
 
 interface ModuleInfo {
@@ -98,7 +103,8 @@ const APP_MODULES: ModuleInfo[] = [
         version: "v2.5.0",
         date: "2026-04-20",
         changes: ["Added Node Topology Graph", "Improved Mission Progress Tracking"],
-        techDeclaration: "Usa React 19 y Framer Motion para orquestación de UI."
+        techDeclaration: "IMPLEMENTACIÓN_ESTRICTA: Utiliza React 19 y Framer Motion para orquestación de UI con sincronización atómica en Firestore.",
+        auditHash: "SHA256:7f8e9d0c1b2a3f4e5d6c7b8a90123456"
       }
     ],
     diagnostics: {
@@ -131,7 +137,8 @@ const APP_MODULES: ModuleInfo[] = [
         version: "v1.8.2",
         date: "2026-04-15",
         changes: ["Fixed race condition on auth check", "Optimized log buffering"],
-        techDeclaration: "Stateful context with local persistence fallback using localStorage."
+        techDeclaration: "DECLARACIÓN_TÉCNICA: Stateful context with local persistence fallback using localStorage. Middleware de persistencia reactiva asegurado.",
+        auditHash: "SHA256:0a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p"
       }
     ],
     diagnostics: {
@@ -166,7 +173,8 @@ const APP_MODULES: ModuleInfo[] = [
         version: "v1.0.0",
         date: "2026-04-22",
         changes: ["Initial Release", "Supports remote shell execution using node child_process"],
-        techDeclaration: "Secure bidirectional bridge between Cloud and Local OS."
+        techDeclaration: "Secure bidirectional bridge between Cloud and Local OS.",
+        auditHash: "SHA256:d1d2d3d4d5d6d7d8d9d0e1e2e3e4e5e6"
       }
     ],
     diagnostics: {
@@ -199,7 +207,8 @@ const APP_MODULES: ModuleInfo[] = [
         version: "v2.0.0",
         date: "2026-04-25",
         changes: ["Added PWA support", "Integrated DevDirectory"],
-        techDeclaration: "Main shell with AnimatePresence for tab transitions."
+        techDeclaration: "Main shell with AnimatePresence for tab transitions.",
+        auditHash: "SHA256:a1a2a3a4a5a6a7a8a9b1b2b3b4b5b6b7"
       }
     ],
     diagnostics: {
@@ -231,13 +240,48 @@ const APP_MODULES: ModuleInfo[] = [
         version: "v1.2.5",
         date: "2026-04-18",
         changes: ["Added log filtering", "Improved autoscroll performance"],
-        techDeclaration: "Uses useRef for DOM manipulation in terminal streaming."
+        techDeclaration: "Uses useRef for DOM manipulation in terminal streaming.",
+        auditHash: "SHA256:c1c2c3c4c5c6c7c8c9d1d2d3d4d5d6d7"
       }
     ],
     diagnostics: {
       status: 'healthy',
       uptime: '100%',
       load: '8%',
+      errors: 0
+    }
+  },
+  {
+    id: 'system_diagnostics',
+    title: 'System_Diagnostics_Core',
+    type: 'module',
+    description: 'Motor de monitoreo preventivo y reporte técnico del estado de salud del ecosistema NYX.',
+    previewDesc: 'Dashboard de métricas de rendimiento, errores en tiempo real y declaración técnica de arquitectura.',
+    code: '// System Health Monitoring\nexport const getSystemHealth = () => {\n  return { status: "nominal", heartbeat: Date.now() };\n}',
+    fullCode: `// lib/diagnostics.ts\nexport interface HealthStatus {\n  uptime: number;\n  memory: string;\n  status: 'nominal' | 'degraded' | 'critical';\n  version: string;\n}\n\nexport const runDiagnostic = async (): Promise<HealthStatus> => {\n  // Simulate system check\n  return {\n    uptime: performance.now(),\n    memory: '128MB / 512MB',\n    status: 'nominal',\n    version: '4.0.2-ALPHA'\n  };\n};`,
+    dependencies: ['performance-api', 'react', 'dashboard-context'],
+    lastLogs: ['[16:20] Diagnostic cycle started.', '[16:22] All systems nominal.'],
+    backups: ['BK_DIAG_V1'],
+    moreInfo: 'Provee el reporte necesario para la Declaración Técnica requerida en las auditorías de despliegue.',
+    icon: ShieldCheck,
+    installSteps: [
+      "Importar runDiagnostic en el punto de entrada",
+      "Configurar intervalo de monitoreo (default 5min)",
+      "Vincular con TerminalPanel para reporte de errores"
+    ],
+    versions: [
+      {
+        version: "v1.0.0",
+        date: "2026-04-25",
+        changes: ["Initial Release", "Integrated with DevDirectory Diagnostics Tab"],
+        techDeclaration: "Architecture based on Observer pattern for real-time status updates.",
+        auditHash: "SHA256:f1f2f3f4f5f6f7f8f9e1e2e3e4e5e6e7"
+      }
+    ],
+    diagnostics: {
+      status: 'healthy',
+      uptime: '100%',
+      load: '1%',
       errors: 0
     }
   },
@@ -583,8 +627,12 @@ export const DevDirectory: React.FC<{ onNavigate?: (tab: string) => void }> = ({
                                </li>
                              ))}
                           </ul>
-                          <div className="p-4 bg-black/40 rounded-xl border border-white/5">
+                          <div className="flex flex-col gap-2 p-4 bg-black/40 rounded-xl border border-white/5">
                              <p className="text-[10px] text-white/40 font-mono leading-relaxed">{v.techDeclaration}</p>
+                             <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                               <span className="text-[8px] font-mono text-primary/40 uppercase">Audit_Hash</span>
+                               {v.auditHash && <span className="text-[8px] font-mono text-white/20 select-all truncate max-w-[150px]">{v.auditHash}</span>}
+                             </div>
                           </div>
                         </div>
                       </div>

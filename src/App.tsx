@@ -10,6 +10,10 @@ import { ToolsPanel } from './components/ToolsPanel';
 import { LinksPanel } from './components/LinksPanel';
 import { FileManagerPanel } from './components/FileManagerPanel';
 import { AgentControllerPanel } from './components/AgentControllerPanel';
+import { DevDirectory } from './components/DevDirectory';
+import { AutopilotController } from './components/AutopilotController';
+import { GuidanceSystem } from './components/GuidanceSystem';
+import { FloatingAssistant } from './components/FloatingAssistant';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutGrid, 
@@ -385,6 +389,18 @@ const DashboardContent: React.FC = () => {
               </motion.div>
             )}
 
+            {activeTab === 'dev' && (
+              <motion.div 
+                key="dev"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <DevDirectory onNavigate={setActiveTab} />
+              </motion.div>
+            )}
+
             {activeTab === 'settings' && (
               <motion.div 
                 key="settings"
@@ -443,8 +459,10 @@ export default function App() {
   return (
     <DashboardProvider>
       <div className="flex h-screen w-full overflow-hidden">
-        {/* Sidebar is now inside DashboardContent to handle activeTab state easily */}
         <DashboardContent />
+        <AutopilotController />
+        <GuidanceSystem />
+        <FloatingAssistant />
       </div>
     </DashboardProvider>
   );

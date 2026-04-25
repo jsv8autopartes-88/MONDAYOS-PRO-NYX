@@ -78,10 +78,34 @@ export interface AgentMission {
   createdAt: number;
 }
 
+export interface AutopilotAction {
+  id: string;
+  type: 'click' | 'input' | 'navigation' | 'wait';
+  target?: string;
+  value?: string;
+  label?: string;
+  status: 'pending' | 'active' | 'completed' | 'failed';
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  featureId: string;
+  type: 'info' | 'success' | 'warning';
+  timestamp: number;
+}
+
 export interface AppState {
   widgets: Widget[];
   logs: ActionLog[];
   isCarMode: boolean;
+  isAutopilotActive: boolean;
+  autopilotQueue: AutopilotAction[];
+  autopilotStatus: string;
+  reportFiles: AppFile[];
+  notifications: AppNotification[];
+  activeTutorial: string | null;
   viewMode: 'grid' | 'list';
   credentials: Record<string, string>;
   notes: string;

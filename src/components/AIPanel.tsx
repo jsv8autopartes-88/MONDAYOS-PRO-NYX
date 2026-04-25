@@ -16,6 +16,7 @@ export const AIPanel: React.FC = () => {
   const [mode, setMode] = useState<'chat' | 'image' | 'voice'>('chat');
   const [isHighThinking, setIsHighThinking] = useState(false);
   const [isFastMode, setIsFastMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -151,6 +152,16 @@ export const AIPanel: React.FC = () => {
     addLog('UPDATE_AI_CONTEXT', 'Updated AI Assistant system context');
   };
 
+  const startVoiceInput = () => {
+    setIsListening(true);
+    addLog('AI_VOICE_LISTEN', 'User started voice input');
+    // Mocking voice to text for now
+    setTimeout(() => {
+      setIsListening(false);
+      setInput('Hello Nyx, execute system audit.');
+    }, 2000);
+  };
+
   return (
     <div className="h-full flex flex-col p-6 max-w-5xl mx-auto gap-6">
       <div className="flex items-center justify-between">
@@ -242,16 +253,26 @@ export const AIPanel: React.FC = () => {
         {mode === 'voice' ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-10 p-12 text-center">
             <div className="w-40 h-40 rounded-full bg-neon-blue/10 flex items-center justify-center relative">
-              <div className="absolute inset-0 rounded-full border-2 border-neon-blue animate-ping opacity-10" />
-              <div className="absolute inset-4 rounded-full border border-neon-blue/30 animate-pulse" />
-              <Mic size={56} className="text-neon-blue" />
+              <div className={cn("absolute inset-0 rounded-full border-2 border-neon-blue opacity-10", isListening && "animate-ping")} />
+              <div className={cn("absolute inset-4 rounded-full border border-neon-blue/30", isListening && "animate-pulse")} />
+              <Mic size={56} className={cn("transition-all", isListening ? "text-primary scale-110" : "text-neon-blue")} />
+              {isListening && <div className="absolute -bottom-4 bg-primary text-black text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Listening...</div>}
             </div>
             <div className="space-y-3">
-              <h3 className="text-xl font-black uppercase tracking-[0.2em]">Live Voice Conversation</h3>
-              <p className="text-xs text-white/30 max-w-xs mx-auto leading-relaxed">Speak naturally with Nyx AI in real-time. (Live API integration pending audio context setup)</p>
+              <h3 className="text-xl font-black uppercase tracking-[0.2em]">{isListening ? 'User Input Stream' : 'Live Voice Conversation'}</h3>
+              <p className="text-xs text-white/30 max-w-xs mx-auto leading-relaxed">
+                {isListening ? 'Processing audio buffer into neural context...' : 'Speak naturally with Nyx AI in real-time. (Live API integration pending audio context setup)'}
+              </p>
             </div>
-            <button className="px-10 py-4 bg-neon-blue text-black rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-neon-blue/80 transition-all active:scale-95 shadow-[0_0_20px_rgba(0,243,255,0.3)]">
-              Start Session
+            <button 
+              onClick={isListening ? () => setIsListening(false) : startVoiceInput}
+              className={cn(
+                "px-10 py-4 rounded-full font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 shadow-lg flex items-center gap-3",
+                isListening ? "bg-neon-pink text-white shadow-neon-pink/20" : "bg-neon-blue text-black shadow-neon-blue/20 hover:bg-neon-blue/80"
+              )}
+            >
+              {isListening ? <X size={14} /> : <Mic size={14} />}
+              {isListening ? 'Cancel Listening' : 'Start Session'}
             </button>
           </div>
         ) : (

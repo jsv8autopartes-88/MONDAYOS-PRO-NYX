@@ -99,6 +99,37 @@ service cloud.firestore {
              data.type in ['script', 'md', 'json', 'svg'];
     }
 
+    function isValidRemoteAgent(data, userId) {
+      return data.keys().hasAll(['id', 'name', 'status', 'ownerId']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.name, 1, 100) &&
+             data.status in ['online', 'offline', 'busy'];
+    }
+
+    function isValidAgentCommand(data) {
+      return data.keys().hasAll(['id', 'cmd', 'status']) &&
+             isValidString(data.cmd, 1, 1000) &&
+             data.status in ['pending', 'received', 'executing', 'completed', 'failed'];
+    }
+
+    function isValidAgentMission(data, userId) {
+      return data.keys().hasAll(['id', 'title', 'goal', 'status', 'ownerId']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.title, 1, 200) &&
+             isValidString(data.goal, 1, 1000) &&
+             data.status in ['active', 'completed', 'paused', 'failed'];
+    }
+
+    function isValidAgentSkill(data, userId) {
+      return data.keys().hasAll(['id', 'name', 'code', 'ownerId']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.name, 1, 100) &&
+             data.code is string;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -119,6 +150,34 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidFile(request.resource.data, userId);
         allow update: if isOwner(userId) && isValidFile(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /agents/{agentId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidRemoteAgent(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidRemoteAgent(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+
+        match /commands/{commandId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) && isValidAgentCommand(request.resource.data);
+          allow update: if isOwner(userId) && isValidAgentCommand(request.resource.data);
+          allow delete: if isOwner(userId);
+        }
+      }
+
+      match /missions/{missionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidAgentMission(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidAgentMission(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /skills/{skillId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidAgentSkill(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidAgentSkill(request.resource.data, userId);
         allow delete: if isOwner(userId);
       }
     }

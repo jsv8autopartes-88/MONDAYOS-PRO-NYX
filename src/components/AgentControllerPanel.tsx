@@ -20,7 +20,17 @@ import {
   Layout,
   Plus,
   Sparkles,
-  FolderOpen
+  FolderOpen,
+  Save,
+  Code,
+  MousePointer2,
+  Navigation,
+  ListRestart,
+  Square,
+  Play,
+  FileText,
+  ClipboardCheck,
+  DownloadCloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDashboard } from '../store/DashboardContext';
@@ -40,6 +50,8 @@ export const AgentControllerPanel: React.FC = () => {
     agents, 
     missions, 
     skills, 
+    reportFiles,
+    generateSystemReport,
     user, 
     sendCommand, 
     deleteAgent, 
@@ -48,10 +60,16 @@ export const AgentControllerPanel: React.FC = () => {
     deleteMission, 
     addSkill, 
     updateSkill,
-    deleteSkill 
+    deleteSkill,
+    isAutopilotActive,
+    toggleAutopilot,
+    addAutopilotTask,
+    clearAutopilotQueue,
+    autopilotQueue,
+    autopilotStatus
   } = useDashboard();
   
-  const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup'>('nodes');
+  const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup' | 'autopilot' | 'reports'>('nodes');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [commands, setCommands] = useState<AgentCommand[]>([]);
   const [inputCmd, setInputCmd] = useState('');
@@ -61,6 +79,8 @@ export const AgentControllerPanel: React.FC = () => {
   const [newMissionGoal, setNewMissionGoal] = useState('');
   const [isEvolvingSkill, setIsEvolvingSkill] = useState<string | null>(null);
   const [evolutionLogs, setEvolutionLogs] = useState<{timestamp: number, message: string}[]>([]);
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ description: '', code: '' });
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId);
 
@@ -279,6 +299,21 @@ export const AgentControllerPanel: React.FC = () => {
           className={cn("p-3 rounded-xl transition-all", activeTab === 'setup' ? "bg-primary text-black" : "text-white/40 hover:bg-white/5")}
         >
           <Smartphone size={20} />
+        </button>
+        <button 
+          onClick={() => setActiveTab('reports')}
+          className={cn("p-3 rounded-xl transition-all", activeTab === 'reports' ? "bg-primary text-black" : "text-white/40 hover:bg-white/5")}
+          title="System Reports"
+        >
+          <FileText size={20} />
+        </button>
+        <div className="mt-auto mb-4 w-8 h-[1px] bg-white/10" />
+        <button 
+          onClick={() => setActiveTab('autopilot')}
+          className={cn("p-3 rounded-xl transition-all", activeTab === 'autopilot' ? "bg-primary text-black" : "text-white/40 hover:bg-white/5")}
+          title="Nyx Native Autopilot"
+        >
+          <MousePointer2 size={20} />
         </button>
       </div>
 
@@ -639,31 +674,102 @@ export const AgentControllerPanel: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {skills.map((skill) => (
-                  <div key={skill.id} className="glass-card p-4 group hover:border-primary/20 transition-all flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-primary">
-                        <Zap size={14} />
+                {skills.map((skill) => {
+                  const isEditing = editingSkillId === skill.id;
+                  return (
+                    <div key={skill.id} className={cn(
+                      "glass-card p-4 group hover:border-primary/20 transition-all flex flex-col gap-3",
+                      isEditing && "border-primary/40 bg-primary/5"
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-primary">
+                          {isEditing ? <Code size={14} /> : <Zap size={14} />}
+                        </div>
+                        <div className="flex gap-2">
+                          {!isEditing && (
+                            <button 
+                              onClick={() => {
+                                setEditingSkillId(skill.id);
+                                setEditForm({ description: skill.description, code: skill.code });
+                              }}
+                              className="text-white/20 hover:text-primary transition-colors"
+                              title="Edit Skill"
+                            >
+                              <Wrench size={14} />
+                            </button>
+                          )}
+                          <button onClick={() => deleteSkill(skill.id)} className="text-white/20 hover:text-neon-pink"><Trash2 size={14} /></button>
+                        </div>
                       </div>
-                      <button onClick={() => deleteSkill(skill.id)} className="text-white/20 hover:text-neon-pink"><Trash2 size={14} /></button>
+
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          <div>
+                            <h3 className="font-bold text-[11px] uppercase text-white tracking-widest mb-1">{skill.name}</h3>
+                            <label className="text-[8px] text-white/40 uppercase font-black block mb-1">Description</label>
+                            <input 
+                              type="text"
+                              className="w-full bg-black/40 border border-white/10 rounded p-1.5 text-[10px] text-white focus:border-primary/50 outline-none"
+                              value={editForm.description}
+                              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-white/40 uppercase font-black block mb-1">Logic_Payload</label>
+                            <textarea 
+                              className="w-full bg-black/40 border border-white/10 rounded p-1.5 text-[10px] font-mono text-white h-32 focus:border-primary/50 outline-none resize-none custom-scrollbar"
+                              value={editForm.code}
+                              onChange={e => setEditForm({ ...editForm, code: e.target.value })}
+                            />
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button 
+                              onClick={() => {
+                                updateSkill(skill.id, { 
+                                  description: editForm.description, 
+                                  code: editForm.code 
+                                });
+                                setEditingSkillId(null);
+                              }}
+                              className="flex-1 py-1.5 bg-primary text-black rounded font-black text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Save size={12} /> Save
+                            </button>
+                            <button 
+                              onClick={() => setEditingSkillId(null)}
+                              className="px-3 py-1.5 bg-white/5 text-white/40 rounded font-black text-[10px] uppercase hover:bg-white/10 transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <h3 className="font-bold text-[11px] uppercase text-white tracking-widest">{skill.name}</h3>
+                            <p className="text-[9px] text-white/40 font-mono italic">{skill.description}</p>
+                            {skill.code && (
+                              <div className="mt-2 p-2 bg-black/40 rounded border border-white/5">
+                                <code className="text-[8px] text-white/20 font-mono block truncate">{skill.code}</code>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-auto flex items-center justify-between text-[8px] font-black italic tracking-widest uppercase text-primary/40">
+                            <button 
+                              onClick={() => evolveSkill(skill.id)}
+                              disabled={isEvolvingSkill === skill.id}
+                              className="flex items-center gap-1 hover:text-primary transition-colors disabled:opacity-50"
+                            >
+                              {isEvolvingSkill === skill.id ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                              EVOLVE
+                            </button>
+                            <ChevronRight size={10} />
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div>
-                      <h3 className="font-bold text-[11px] uppercase text-white tracking-widest">{skill.name}</h3>
-                      <p className="text-[9px] text-white/40 font-mono italic">{skill.description}</p>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between text-[8px] font-black italic tracking-widest uppercase text-primary/40">
-                      <button 
-                        onClick={() => evolveSkill(skill.id)}
-                        disabled={isEvolvingSkill === skill.id}
-                        className="flex items-center gap-1 hover:text-primary transition-colors disabled:opacity-50"
-                      >
-                        {isEvolvingSkill === skill.id ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                        EVOLVE
-                      </button>
-                      <ChevronRight size={10} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           )}
@@ -689,6 +795,233 @@ export const AgentControllerPanel: React.FC = () => {
               className="flex-1 flex overflow-hidden"
             >
               <LocalAgentSetup />
+            </motion.div>
+          )}
+
+          {activeTab === 'reports' && (
+            <motion.div 
+              key="reports"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto custom-scrollbar"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase">System Audit Center</h2>
+                  <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest font-mono italic">Sector: REPORTING_LOGIC // AUTOMATED_AUDITS</p>
+                </div>
+                <button 
+                  onClick={generateSystemReport}
+                  className="px-6 py-2.5 bg-primary text-black rounded-xl font-black text-[10px] uppercase hover:scale-105 transition-all shadow-[0_0_20px_rgba(207,248,12,0.3)] flex items-center gap-2"
+                >
+                  <Activity size={14} /> Run New Audit
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {reportFiles.length > 0 ? reportFiles.map((report) => (
+                  <div key={report.id} className="glass-card p-6 bg-black/40 border border-white/5 group hover:border-primary/30 transition-all flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <FileText size={20} />
+                      </div>
+                      <span className="text-[9px] font-mono text-white/20">{report.id.split('_')[1]}</span>
+                    </div>
+                    <h3 className="text-sm font-black text-white uppercase mb-2 truncate">{report.name}</h3>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-[10px] text-white/40 font-mono line-clamp-3 leading-relaxed">
+                        {report.content.substring(0, 150)}...
+                      </p>
+                    </div>
+                    <div className="mt-6 flex gap-3 pt-4 border-t border-white/5">
+                      <button 
+                        onClick={() => {
+                          const blob = new Blob([report.content], { type: 'text/markdown' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.style.display = 'none';
+                          a.href = url;
+                          a.download = `${report.name}.md`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-white/60 transition-all flex items-center justify-center gap-2"
+                      >
+                        <DownloadCloud size={12} /> Download
+                      </button>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(report.content);
+                        }}
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-primary transition-all"
+                        title="Copy to Clipboard"
+                      >
+                        <ClipboardCheck size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="col-span-full py-24 flex flex-col items-center justify-center text-center opacity-20">
+                     <FileText size={64} className="mb-4" strokeWidth={1} />
+                     <p className="text-xs font-black uppercase tracking-[0.3em]">No Audit Reports Logged</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'autopilot' && (
+            <motion.div 
+              key="autopilot"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar gap-8"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-[0_0_20px_rgba(212,255,0,0.1)]">
+                    <MousePointer2 size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white">Nyx_Autopilot_Engine</h2>
+                    <p className="text-[10px] text-white/30 uppercase tracking-[0.3em]">Native UI Automation & Neural Control</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={clearAutopilotQueue}
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                  >
+                    <ListRestart size={14} /> Clear Queue
+                  </button>
+                  <button 
+                    onClick={toggleAutopilot}
+                    className={cn(
+                      "px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg",
+                      isAutopilotActive 
+                        ? "bg-neon-pink text-white shadow-neon-pink/20" 
+                        : "bg-primary text-black shadow-primary/20"
+                    )}
+                  >
+                    {isAutopilotActive ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                    {isAutopilotActive ? 'Deactivate Engine' : 'Activate Engine'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="glass-card p-6 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Navigation className="text-primary" size={18} />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-white">System_Audit_Sequence</h3>
+                  </div>
+                  <p className="text-[10px] text-white/40 leading-relaxed mb-6">Executes a full sweep of the application architecture, verifying panel integrity and data connectivity.</p>
+                  <button 
+                    onClick={() => addAutopilotTask([
+                      { type: 'navigation', value: 'home' },
+                      { type: 'wait', value: '2000' },
+                      { type: 'navigation', value: 'files' },
+                      { type: 'wait', value: '1500' },
+                      { type: 'click', target: '.glass-card:first-child' },
+                      { type: 'navigation', value: 'agents' },
+                      { type: 'wait', value: '1000' }
+                    ])}
+                    className="w-full py-3 bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  >
+                    Initiate Audit
+                  </button>
+                </div>
+
+                <div className="glass-card p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Activity className="text-neon-blue" size={18} />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-white">UI_Stress_Test</h3>
+                  </div>
+                  <p className="text-[10px] text-white/40 leading-relaxed mb-6">Rapidly cycles through navigational states to verify browser performance and render consistency.</p>
+                  <button 
+                    onClick={() => addAutopilotTask([
+                      { type: 'navigation', value: 'notes' },
+                      { type: 'wait', value: '500' },
+                      { type: 'navigation', value: 'ai' },
+                      { type: 'wait', value: '500' },
+                      { type: 'navigation', value: 'terminal' },
+                      { type: 'wait', value: '500' },
+                      { type: 'navigation', value: 'home' }
+                    ])}
+                    className="w-full py-3 bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  >
+                    Run Stress Test
+                  </button>
+                </div>
+
+                <div className="glass-card p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Bot className="text-neon-purple" size={18} />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-white">Auto_Doc_Generator</h3>
+                  </div>
+                  <p className="text-[10px] text-white/40 leading-relaxed mb-6">Automatically creates a documentation scaffold in the Notes panel for system reference.</p>
+                  <button 
+                    onClick={() => addAutopilotTask([
+                      { type: 'navigation', value: 'notes' },
+                      { type: 'wait', value: '1000' },
+                      { type: 'input', target: 'textarea, .ql-editor', value: '# SYNC_PROTOCOL\n\n- Node Link: Active\n- Autopilot: Online\n- Neural Status: Optimal\n' },
+                      { type: 'wait', value: '500' }
+                    ])}
+                    className="w-full py-3 bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  >
+                    Generate Manifest
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-primary">Live_Automation_Stack</h3>
+                  <span className="text-[9px] text-white/20 font-mono italic">PENDING_OPERATIONS: {autopilotQueue.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {autopilotQueue.slice(0, 5).map((action, i) => (
+                    <div key={action.id} className="flex items-center gap-4 p-3 bg-white/5 border border-white/5 rounded-xl">
+                      <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center text-xs font-bold text-white/40">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-[10px] font-bold text-white uppercase">{action.type}: {action.target || action.value}</div>
+                        <div className="text-[8px] text-white/30 uppercase tracking-widest">Execution_id: {action.id}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        <span className="text-[9px] font-mono text-primary uppercase">Queued</span>
+                      </div>
+                    </div>
+                  ))}
+                  {autopilotQueue.length > 5 && (
+                    <div className="text-center py-2 text-[9px] text-white/20 font-mono italic">
+                      + {autopilotQueue.length - 5} more operations in stack
+                    </div>
+                  )}
+                  {autopilotQueue.length === 0 && (
+                    <div className="py-12 border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center justify-center text-white/10">
+                      <ListRestart size={32} className="mb-4 opacity-20" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em]">Neural Stack Empty</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-auto glass-card p-4 border-primary/10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_#d4ff00]" />
+                  <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Engine Status: {autopilotStatus}</span>
+                </div>
+                <div className="text-[9px] font-mono text-white/20">
+                  BUILD_VER: 2.1.0-RC // CONTROL_INTERFACE: NATIVE
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

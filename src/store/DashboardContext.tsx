@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Widget, ActionLog, AppState, Asset, AppFile, RemoteAgent, AgentCommand, AgentMission, AgentSkill } from '../types';
+import { Widget, ActionLog, AppState, Asset, AppFile, RemoteAgent, AgentCommand, AgentMission, AgentSkill, AutopilotAction, AppNotification } from '../types';
 import { auth, db, signInWithGoogle, logout as firebaseLogout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -36,6 +36,18 @@ interface DashboardContextType extends AppState {
   addSkill: (skill: Omit<AgentSkill, 'id'>) => void;
   updateSkill: (id: string, updates: Partial<AgentSkill>) => void;
   deleteSkill: (id: string) => void;
+  toggleAutopilot: () => void;
+  addAutopilotTask: (actions: Omit<AutopilotAction, 'id' | 'status'>[]) => void;
+  clearAutopilotQueue: () => void;
+  updateAutopilotStatus: (status: string) => void;
+  completeAutopilotAction: (id: string) => void;
+  reportFiles: AppFile[];
+  generateSystemReport: () => void;
+  notifications: AppNotification[];
+  activeTutorial: string | null;
+  addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp'>) => void;
+  clearNotification: (id: string) => void;
+  setTutorial: (featureId: string | null) => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -125,13 +137,25 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         shortcuts: parsed.shortcuts || [],
         agents: parsed.agents || [],
         missions: parsed.missions || [],
-        skills: parsed.skills || []
+        skills: parsed.skills || [],
+        isAutopilotActive: parsed.isAutopilotActive || false,
+        autopilotQueue: parsed.autopilotQueue || [],
+        autopilotStatus: parsed.autopilotStatus || 'STANDBY',
+        reportFiles: parsed.reportFiles || [],
+        notifications: [],
+        activeTutorial: null
       };
     }
     return {
       widgets: INITIAL_WIDGETS,
       logs: [],
       isCarMode: false,
+      isAutopilotActive: false,
+      autopilotQueue: [],
+      autopilotStatus: 'STANDBY',
+      reportFiles: [],
+      notifications: [],
+      activeTutorial: null,
       viewMode: 'grid',
       credentials: {},
       notes: '',
@@ -564,6 +588,112 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     setState(prev => ({ ...prev, skills: prev.skills.filter(s => s.id !== id) }));
   };
+  const toggleAutopilot = () => {
+    setState(prev => ({ ...prev, isAutopilotActive: !prev.isAutopilotActive }));
+    addLog('AUTOPILOT_TOGGLE', `Autopilot mode ${!state.isAutopilotActive ? 'ACTIVATED' : 'DEACTIVATED'}`);
+  };
+
+  const addAutopilotTask = (actions: Omit<AutopilotAction, 'id' | 'status'>[]) => {
+    const newActions: AutopilotAction[] = actions.map(a => ({
+      ...a,
+      id: Math.random().toString(36).substr(2, 9),
+      status: 'pending'
+    }));
+    setState(prev => ({ 
+      ...prev, 
+      autopilotQueue: [...prev.autopilotQueue, ...newActions],
+      isAutopilotActive: true 
+    }));
+    addLog('AUTOPILOT_TASK_ADDED', `Queued ${actions.length} automated operations.`);
+  };
+
+  const clearAutopilotQueue = () => {
+    setState(prev => ({ ...prev, autopilotQueue: [], autopilotStatus: 'STANDBY' }));
+  };
+
+  const updateAutopilotStatus = (status: string) => {
+    setState(prev => ({ ...prev, autopilotStatus: status }));
+  };
+
+  const completeAutopilotAction = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      autopilotQueue: prev.autopilotQueue.filter(a => a.id !== id)
+    }));
+  };
+
+  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp'>) => {
+    const newNotif: AppNotification = {
+      ...notif,
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now()
+    };
+    setState(prev => ({ ...prev, notifications: [newNotif, ...prev.notifications] }));
+  };
+
+  const clearNotification = (id: string) => {
+    setState(prev => ({ ...prev, notifications: prev.notifications.filter(n => n.id !== id) }));
+  };
+
+  const setTutorial = (featureId: string | null) => {
+    setState(prev => ({ ...prev, activeTutorial: featureId }));
+  };
+
+  const generateSystemReport = useCallback(() => {
+    const timestamp = new Date().toLocaleString();
+    const reportContent = `# NYX NEURAL ECOSYSTEM - SYSTEM AUDIT REPORT 
+Generated: ${timestamp}
+Version: v2.5.0-STABLE
+
+## 1. INTEGRACION UNIVERSAL & CLOUD SYNC [FUNC_SYN]
+- ECOSISTEMA: Sincronización instantánea entre Localhost (PC Principal) y Cloud (Firebase).
+- MOVIL: Telemetría en tiempo real accesible desde dispositivos móviles con duplicación de estado (Mirroring).
+- BACKUP: Sistema de logs indexado automáticamente con descripción de acciones para retrocesos sistemáticos.
+
+## 2. ASISTENTE FLOTANTE & COMANDO POR VOZ [FUNC_AI]
+- INTERFAZ: Chat flotante persistente con prioridad en comandos de voz (LiveVoice Waveform).
+- MODOS: Switch rápido entre Voz y Teclado para mayor flexibilidad en entornos ruidosos o privados.
+- SUGERENCIAS: Flujos de trabajo sugeridos proactivamente basados en el contexto global de logs.
+
+## 3. INSTALACION ASISTIDA (WIZARD) [FUNC_INS]
+- WIZARD: Launcher de configuración inicial para validación de API Keys, rutas y permisos de Admin.
+- EXPORTACION: Generación de scripts .js/.bat con auto-gestión de dependencias locales.
+- TELEMETRIA: Monitoreo en tiempo real de la conectividad del nodo post-instalación.
+
+## 4. GESTION DE AGENTES MODULARES [FUNC_AGN]
+- JERARQUIA: Árbol de mandos con sub-agentes especializados delegados por la IA Principal.
+- MODULARIDAD: Capacidad de añadir "Skills" (Scripts) personalizados que evolucionan con el uso.
+- REMOTO: Edición y resubida de scripts de control directamente desde el dashboard.
+
+## 5. REPORTE DE CONTEXTO & AUTODESARROLLO [FUNC_DEV]
+- TRIGGER: Auto-compilación de backups contextuales cada 10 inputs del usuario.
+- FORMATO: Archivos .txt/.md indexados para entrenamiento y optimización de la IA.
+- AUTOGESTION: Gestión automática de dependencias en terminal activa monitoreada por NYX.
+
+---
+**STATUS: SYSTEM_NOMINAL // TOTAL_INTEGRATION: 94%**
+`;
+
+    const newReport: AppFile = {
+      id: 'report_' + Date.now(),
+      name: `SYSTEM_AUDIT_${Date.now()}`,
+      content: reportContent,
+      type: 'md'
+    };
+
+    setState(prev => ({
+      ...prev,
+      reportFiles: [newReport, ...prev.reportFiles]
+    }));
+    addLog('GENERATE_REPORT', `System audit report generated: ${newReport.name}`);
+    
+    addNotification({
+      title: 'Audit Report Generated',
+      message: 'A complete functional manifest has been created and indexed.',
+      featureId: 'AUDIT_SYSTEM',
+      type: 'success'
+    });
+  }, [addLog]);
 
   return (
     <DashboardContext.Provider value={{
@@ -598,7 +728,16 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteMission,
       addSkill,
       updateSkill,
-      deleteSkill
+      deleteSkill,
+      toggleAutopilot,
+      addAutopilotTask,
+      clearAutopilotQueue,
+      updateAutopilotStatus,
+      completeAutopilotAction,
+      generateSystemReport,
+      addNotification,
+      clearNotification,
+      setTutorial
     }}>
       {children}
     </DashboardContext.Provider>

@@ -19,7 +19,8 @@ import {
   Zap,
   Globe,
   Folder,
-  Activity
+  Activity,
+  Database
 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
@@ -43,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { icon: ImageIcon, label: 'Media', id: 'media' },
     { icon: PenTool, label: 'Vector', id: 'vector' },
     { icon: Terminal, label: 'Terminal', id: 'terminal' },
+    { icon: Database, label: 'Dev Directory', id: 'dev' },
     { icon: History, label: 'Logs', id: 'logs' },
     { icon: Settings, label: 'Settings', id: 'settings' },
   ];
@@ -58,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         {navItems.map((item) => (
           <button
             key={item.id}
+            data-id={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
               "w-full flex items-center justify-center lg:justify-start gap-4 py-4 px-0 lg:px-6 transition-all duration-300 group",
