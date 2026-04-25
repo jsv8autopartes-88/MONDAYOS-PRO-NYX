@@ -10,6 +10,7 @@ import { ToolsPanel } from './components/ToolsPanel';
 import { LinksPanel } from './components/LinksPanel';
 import { FileManagerPanel } from './components/FileManagerPanel';
 import { AgentControllerPanel } from './components/AgentControllerPanel';
+import { AgentTreeView } from './components/AgentTreeView';
 import { DevDirectory } from './components/DevDirectory';
 import { AutopilotController } from './components/AutopilotController';
 import { GuidanceSystem } from './components/GuidanceSystem';
@@ -31,6 +32,7 @@ import { cn } from './lib/utils';
 const DashboardContent: React.FC = () => {
   const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents } = useDashboard();
   const [activeTab, setActiveTab] = React.useState('home');
+  const [agentSubTab, setAgentSubTab] = React.useState('list');
 
   if (!isAuthReady) {
     return (
@@ -383,9 +385,31 @@ const DashboardContent: React.FC = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="h-full"
+                className="h-full flex flex-col"
               >
-                <AgentControllerPanel />
+                <div className="flex border-b border-white/5 bg-black/40">
+                  <button 
+                    onClick={() => setAgentSubTab('list')}
+                    className={cn(
+                      "px-6 py-4 text-[11px] font-black uppercase tracking-widest transition-all border-b-2",
+                      agentSubTab === 'list' ? "border-primary text-white" : "border-transparent text-white/40 hover:text-white"
+                    )}
+                  >
+                    Control Panel
+                  </button>
+                  <button 
+                    onClick={() => setAgentSubTab('topology')}
+                    className={cn(
+                      "px-6 py-4 text-[11px] font-black uppercase tracking-widest transition-all border-b-2",
+                      agentSubTab === 'topology' ? "border-primary text-white" : "border-transparent text-white/40 hover:text-white"
+                    )}
+                  >
+                    Neural Topology
+                  </button>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {agentSubTab === 'list' ? <AgentControllerPanel /> : <AgentTreeView />}
+                </div>
               </motion.div>
             )}
 

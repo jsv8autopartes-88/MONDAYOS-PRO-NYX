@@ -11,6 +11,19 @@ export const FloatingAssistant: React.FC = () => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
 
+  const toggleListening = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsListening(!isListening);
+    if (!isListening) {
+      addNotification({
+        title: 'Voice Priority Active',
+        message: 'Nyx is listening to biometric triggers...',
+        featureId: 'VOICE_TRIGGER',
+        type: 'info'
+      });
+    }
+  };
+
   useEffect(() => {
     // Initial welcome notification
     const timer = setTimeout(() => {
@@ -49,20 +62,45 @@ export const FloatingAssistant: React.FC = () => {
             className="w-80 h-[450px] glass-card flex flex-col border-primary/20 shadow-2xl overflow-hidden mb-2"
           >
             {/* Chat Header */}
-            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-primary/10">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                    <Sparkles size={16} />
+            <div className="p-4 border-b border-white/5 flex flex-col gap-3 bg-primary/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                      <Sparkles size={16} />
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-black" />
                   </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-black" />
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-white">Nyx Assistant</h4>
+                    <p className="text-[8px] text-primary uppercase font-mono animate-pulse">{autopilotStatus}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-[11px] font-black uppercase text-white">Nyx Assistant</h4>
-                  <p className="text-[8px] text-primary uppercase font-mono animate-pulse">{autopilotStatus}</p>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsKeyboardMode(!isKeyboardMode)}
+                    className={cn(
+                      "p-1.5 rounded-lg transition-all",
+                      isKeyboardMode ? "bg-primary text-black" : "text-white/20 hover:text-white"
+                    )}
+                  >
+                    <Keyboard size={14} />
+                  </button>
+                  <button onClick={() => setIsOpen(false)} className="text-white/20 hover:text-white"><X size={16} /></button>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-white/20 hover:text-white"><X size={16} /></button>
+
+              {/* LiveVoice Waveform (Inner) */}
+              <div className="flex gap-1 items-end h-8 overflow-hidden bg-black/20 rounded-lg p-2 justify-center">
+                {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.3, 0.7, 0.5, 0.9].map((h, i) => (
+                  <motion.div 
+                    key={i}
+                    animate={{ height: !isKeyboardMode && isListening ? [h*24, (1-h)*24, h*24] : 4 }}
+                    transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.05 }}
+                    className="flex-1 bg-primary rounded-full min-w-[2px]"
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Chat Body */}
@@ -114,23 +152,43 @@ export const FloatingAssistant: React.FC = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => {
+              if (!isOpen) {
+                setIsOpen(true);
+                setIsListening(true);
+              } else {
+                setIsOpen(false);
+                setIsListening(false);
+              }
+            }}
             className={cn(
-              "w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative z-10",
-              isOpen ? "bg-neon-pink text-white" : "bg-primary text-black"
+              "w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative z-10 border-2",
+              isOpen ? "bg-neon-pink text-white border-white/20" : "bg-primary text-black border-primary/40"
             )}
           >
-            {isOpen ? <X size={24} /> : <div className="flex gap-0.5 items-end h-6">
-              {[0.4, 0.7, 0.5, 0.9, 0.6].map((h, i) => (
-                <motion.div 
-                  key={i}
-                  animate={{ height: isListening ? [h*20, (1-h)*20, h*20] : 8 }}
-                  transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
-                  className="w-1 bg-black rounded-full"
-                />
-              ))}
-            </div>}
+            {isOpen ? <X size={24} /> : (
+              <div className="flex flex-col items-center">
+                <div className="flex gap-0.5 items-end h-6 mb-1">
+                  {[0.4, 0.7, 0.5, 0.9, 0.6].map((h, i) => (
+                    <motion.div 
+                      key={i}
+                      animate={{ height: [h*20, (1-h)*20, h*20] }}
+                      transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
+                      className="w-1 bg-black rounded-full"
+                    />
+                  ))}
+                </div>
+                <div className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse" />
+              </div>
+            )}
           </motion.button>
+
+          {/* Biometric Trigger Label */}
+          {!isOpen && (
+            <div className="absolute -right-24 top-1/2 -translate-y-1/2 bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              <p className="text-[9px] font-black uppercase text-primary whitespace-nowrap tracking-widest">Neural Trigger</p>
+            </div>
+          )}
 
           {/* Secondary Keyboard Icon */}
           <AnimatePresence>

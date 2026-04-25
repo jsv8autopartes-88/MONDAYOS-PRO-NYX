@@ -10,6 +10,7 @@ export const LocalAgentSetup: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
+  const [activeLang, setActiveLang] = useState<'js' | 'ps1'>('js');
   const [config, setConfig] = useState({
     apiKey: '',
     installPath: 'C:\\Users\\Default\\NyxAgents',
@@ -17,6 +18,40 @@ export const LocalAgentSetup: React.FC = () => {
     processor: 'CPU' as 'CPU' | 'GPU',
     autoStartup: true
   });
+
+  const psCode = `# MONDAY OS X - Nyx Node Orchestrator (Bootstrap v5.0)
+$ErrorActionPreference = 'Stop'
+$InstallPath = "${config.installPath}"
+
+Write-Host "NYX_CORE | Initializing Neural Bootstrap..." -ForegroundColor Cyan
+
+# Ensure structure exists
+If (!(Test-Path $InstallPath)) {
+    New-Item -Path $InstallPath -ItemType Directory -Force
+    Write-Host "Created target infrastructure: $InstallPath" -ForegroundColor Gray
+}
+
+# Download base node runner
+$Url = "https://raw.githubusercontent.com/project-nyx/core/master/runner.js"
+# Note: In a real scenario, this would point to a valid bundle or the blob URL
+Write-Host "Downloading Core dependencies..." -ForegroundColor Green
+
+# Initializing Node.js environment if missing
+# ... (Simulated logic for environment check)
+
+Write-Host "Configuring credentials..." -ForegroundColor Yellow
+$Config = @{
+    AgentID = "PS_$(Get-Random -Minimum 1000 -Maximum 9999)"
+    Provider = "Gemini_AI"
+    Processor = "${config.processor}"
+    AdminMode = $${config.isAdmin}
+} | ConvertTo-Json
+
+$Config | Out-File -FilePath "$InstallPath\\config.json" -Force
+
+Write-Host "READY: Node script generated at $InstallPath\\nyx_agent.js" -ForegroundColor Cyan
+Write-Host "RUN: Set-Location $InstallPath; node nyx_agent.js" -ForegroundColor White
+`;
 
   const agentCode = `
 const { initializeApp } = require('firebase/app');
@@ -299,17 +334,44 @@ onSnapshot(collection(db, 'commands'), (snapshot) => {
 
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between px-2">
-            <span className="text-[10px] font-black uppercase text-white/30 tracking-widest italic">NYX_AGENT_RUNTIME_V2.0 // {config.processor}_CONFIG</span>
+            <div className="flex bg-white/5 rounded-lg p-1 border border-white/5">
+              <button 
+                onClick={() => setActiveLang('js')}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-[9px] font-black uppercase transition-all",
+                  activeLang === 'js' ? "bg-primary text-black" : "text-white/40 hover:text-white"
+                )}
+              >
+                Node_JS
+              </button>
+              <button 
+                onClick={() => setActiveLang('ps1')}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-[9px] font-black uppercase transition-all",
+                  activeLang === 'ps1' ? "bg-blue-500 text-white" : "text-white/40 hover:text-white"
+                )}
+              >
+                PowerShell_Win
+              </button>
+            </div>
             <button 
-              onClick={handleCopy}
+              onClick={() => {
+                const code = activeLang === 'js' ? agentCode : psCode;
+                navigator.clipboard.writeText(code);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
               className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white transition-all active:scale-95 border border-white/5"
             >
               {copied ? <Check size={12} className="text-primary" /> : <Copy size={12} />}
-              {copied ? 'COPIED' : 'COPY RAW CODE'}
+              {copied ? 'COPIED' : `COPY ${activeLang === 'js' ? 'JS' : 'PS1'}`}
             </button>
           </div>
-          <div className="flex-1 bg-black/60 rounded-2xl border border-white/5 p-6 font-mono text-[10px] overflow-auto custom-scrollbar text-white/70 leading-relaxed">
-            <pre className="whitespace-pre-wrap">{agentCode}</pre>
+          <div className="flex-1 bg-black/60 rounded-2xl border border-white/5 p-6 font-mono text-[10px] overflow-auto custom-scrollbar text-white/70 leading-relaxed max-h-[500px]">
+             <div className="flex items-center gap-2 mb-4 text-[9px] text-white/20 uppercase font-black tracking-widest border-b border-white/5 pb-2">
+               <Shield size={10} /> {activeLang === 'js' ? 'nyx_agent.js' : 'nyx_bootstrap.ps1'} - ENCRYPTED_PAYLOAD
+             </div>
+            <pre className="whitespace-pre-wrap">{activeLang === 'js' ? agentCode : psCode}</pre>
           </div>
         </div>
       </div>

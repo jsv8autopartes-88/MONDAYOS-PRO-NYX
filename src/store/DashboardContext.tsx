@@ -289,20 +289,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     document.documentElement.style.setProperty('--color-card-bg', state.theme.cardBg);
   }, [state]);
 
-  const addLog = useCallback((action: string, details: string, previousState?: any) => {
-    const newLog: ActionLog = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now(),
-      action,
-      details,
-      previousState
-    };
-    setState(prev => ({
-      ...prev,
-      logs: [newLog, ...prev.logs].slice(0, 100)
-    }));
-  }, []);
-
   const login = async () => {
     await signInWithGoogle();
   };
@@ -410,7 +396,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addLog('ROLLBACK', `Rolled back to state from log: ${logId}`);
     }
   };
-
   const addAsset = (asset: Omit<Asset, 'id'>) => {
     const newAsset = { ...asset, id: Math.random().toString(36).substr(2, 9) };
     setState(prev => {
@@ -500,7 +485,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const removeShortcut = (command: string) => {
     setState(prev => ({ ...prev, shortcuts: prev.shortcuts.filter(s => s.command !== command) }));
   };
-
   const sendCommand = async (agentId: string, cmd: string, args: any[] = []) => {
     if (!user) return;
     const commandId = Math.random().toString(36).substr(2, 9);
@@ -588,6 +572,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     setState(prev => ({ ...prev, skills: prev.skills.filter(s => s.id !== id) }));
   };
+
   const toggleAutopilot = () => {
     setState(prev => ({ ...prev, isAutopilotActive: !prev.isAutopilotActive }));
     addLog('AUTOPILOT_TOGGLE', `Autopilot mode ${!state.isAutopilotActive ? 'ACTIVATED' : 'DEACTIVATED'}`);
@@ -674,26 +659,59 @@ Version: v2.5.0-STABLE
 **STATUS: SYSTEM_NOMINAL // TOTAL_INTEGRATION: 94%**
 `;
 
+    const id = 'report_' + Date.now();
     const newReport: AppFile = {
-      id: 'report_' + Date.now(),
+      id,
       name: `SYSTEM_AUDIT_${Date.now()}`,
       content: reportContent,
       type: 'md'
     };
 
+    const logEntry: ActionLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now(),
+      action: 'GENERATE_REPORT',
+      details: `System audit report generated: ${newReport.name}`
+    };
+
     setState(prev => ({
       ...prev,
-      reportFiles: [newReport, ...prev.reportFiles]
+      reportFiles: [newReport, ...prev.reportFiles],
+      logs: [logEntry, ...prev.logs].slice(0, 100),
+      notifications: [{
+        id: Math.random().toString(36).substr(2, 9),
+        title: 'Audit Report Generated',
+        message: 'A complete functional manifest has been created and indexed.',
+        featureId: 'AUDIT_SYSTEM',
+        type: 'success',
+        timestamp: Date.now()
+      }, ...prev.notifications]
     }));
-    addLog('GENERATE_REPORT', `System audit report generated: ${newReport.name}`);
-    
-    addNotification({
-      title: 'Audit Report Generated',
-      message: 'A complete functional manifest has been created and indexed.',
-      featureId: 'AUDIT_SYSTEM',
-      type: 'success'
+  }, []);
+
+  const addLog = useCallback((action: string, details: string, previousState?: any) => {
+    const newLog: ActionLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now(),
+      action,
+      details,
+      previousState
+    };
+    setState(prev => {
+      const newLogs = [newLog, ...prev.logs].slice(0, 100);
+      
+      // Auto-backup logic: Trigger report every 10 logs (Segment for data resilience)
+      // Avoid infinite loop by only triggering for non-system actions if needed
+      if (newLogs.length % 10 === 0 && newLogs.length > 0 && action !== 'GENERATE_REPORT') {
+        setTimeout(() => generateSystemReport(), 100);
+      }
+
+      return {
+        ...prev,
+        logs: newLogs
+      };
     });
-  }, [addLog]);
+  }, [generateSystemReport]);
 
   return (
     <DashboardContext.Provider value={{

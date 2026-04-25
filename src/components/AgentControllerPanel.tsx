@@ -397,6 +397,30 @@ export const AgentControllerPanel: React.FC = () => {
                     </div>
 
                     <div className="flex-1 flex flex-col p-6 gap-6 overflow-hidden">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-primary/30 transition-all">
+                          <div className="flex items-center gap-2 text-primary opacity-60">
+                            <Monitor size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">OS_PLATFORM</span>
+                          </div>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.os || selectedAgent.platform || 'Nyx_OS v2.1'}</span>
+                        </div>
+                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-neon-blue/30 transition-all">
+                          <div className="flex items-center gap-2 text-neon-blue opacity-60">
+                            <Cpu size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">CPU_ARCHITECTURE</span>
+                          </div>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.cpu || 'Dynamic Neural Processor'}</span>
+                        </div>
+                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-neon-purple/30 transition-all">
+                          <div className="flex items-center gap-2 text-neon-purple opacity-60">
+                            <Activity size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">MEMORY_RESOURCES</span>
+                          </div>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.ram || 'Optimized Allocation 16GB'}</span>
+                        </div>
+                      </div>
+
                       <div className="flex-1 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar space-y-4 bg-black/40">
                         <div className="text-white/20 text-[9px] mb-4 border-b border-white/5 pb-2 uppercase tracking-widest">
                           // NODE_LINK_STABLE // STREAM_ACTIVE
