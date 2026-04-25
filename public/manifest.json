@@ -1,0 +1,21 @@
+{
+  "name": "NYX_CORE Autonomous Agent",
+  "short_name": "NYX_CORE",
+  "description": "Unified AI Agent Ecosystem & Automation Controller",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#cff80c",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuDQ4F-s0Y-rYv9970i503oE6v_e39oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuDQ4F-s0Y-rYv9970i503oE6v_e39oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8_oY3oI4v2k8",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -31,6 +31,7 @@ import { db } from '../lib/firebase';
 import { GoogleGenAI, Type } from "@google/genai";
 import { AgentNetworkGraph } from './AgentNetworkGraph';
 import { DevDirectory } from './DevDirectory';
+import { LocalAgentSetup } from './LocalAgentSetup';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -50,7 +51,7 @@ export const AgentControllerPanel: React.FC = () => {
     deleteSkill 
   } = useDashboard();
   
-  const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory'>('nodes');
+  const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup'>('nodes');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [commands, setCommands] = useState<AgentCommand[]>([]);
   const [inputCmd, setInputCmd] = useState('');
@@ -272,6 +273,12 @@ export const AgentControllerPanel: React.FC = () => {
           className={cn("p-3 rounded-xl transition-all", activeTab === 'directory' ? "bg-primary text-black" : "text-white/40 hover:bg-white/5")}
         >
           <FolderOpen size={20} />
+        </button>
+        <button 
+          onClick={() => setActiveTab('setup')}
+          className={cn("p-3 rounded-xl transition-all", activeTab === 'setup' ? "bg-primary text-black" : "text-white/40 hover:bg-white/5")}
+        >
+          <Smartphone size={20} />
         </button>
       </div>
 
@@ -672,6 +679,18 @@ export const AgentControllerPanel: React.FC = () => {
               <DevDirectory onNavigate={(tab) => setActiveTab(tab as any)} />
             </motion.div>
           )}
+
+          {activeTab === 'setup' && (
+            <motion.div 
+              key="setup"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex-1 flex overflow-hidden"
+            >
+              <LocalAgentSetup />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -684,13 +703,20 @@ export const AgentControllerPanel: React.FC = () => {
                 <button onClick={() => setShowConnectModal(false)}><X size={20} className="text-white/40" /></button>
               </div>
               <div className="space-y-4">
-                <p className="text-[11px] text-white/50 leading-relaxed uppercase tracking-tighter">Execute the NYX_BOOTSTRAP script on your host machine to authorize the node.</p>
-                <div className="bg-black/60 p-4 rounded-lg font-mono text-[9px] text-primary break-all border border-white/10 uppercase">
-                  NodeID_{Math.random().toString(36).substr(2, 6).toUpperCase()} // UserID: {user?.uid.substring(0,8)}...
+                <p className="text-[11px] text-white/50 leading-relaxed uppercase tracking-tighter text-center">To integrate your physical hardware and enable local automation, you need to configure the NYX_BOOTSTRAP script.</p>
+                <div className="p-8 bg-primary/5 border border-primary/20 rounded-xl flex flex-col items-center gap-4">
+                   <Smartphone size={48} className="text-primary animate-pulse" />
+                   <p className="text-[10px] text-primary/60 font-black uppercase tracking-widest">Awaiting Bridge Connection</p>
                 </div>
               </div>
-              <button onClick={() => setShowConnectModal(false)} className="w-full py-3 bg-primary text-black rounded-lg font-black uppercase text-[11px] tracking-widest hover:opacity-80">
-                Confirm Handshake
+              <button 
+                onClick={() => {
+                  setActiveTab('setup');
+                  setShowConnectModal(false);
+                }} 
+                className="w-full py-4 bg-primary text-black rounded-lg font-black uppercase text-[11px] tracking-widest hover:scale-[1.02] transition-all"
+              >
+                Go to Setup Guide
               </button>
             </motion.div>
           </motion.div>
