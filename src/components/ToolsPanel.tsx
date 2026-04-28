@@ -7,10 +7,14 @@ interface ToolProps {
   description: string;
   icon: any;
   color: string;
+  onClick?: () => void;
 }
 
-const ToolCard: React.FC<ToolProps> = ({ title, description, icon: Icon, color }) => (
-  <div className="glass-card p-6 flex flex-col items-center text-center space-y-4 hover:bg-white/5 transition-all group cursor-pointer">
+const ToolCard: React.FC<ToolProps> = ({ title, description, icon: Icon, color, onClick }) => (
+  <div 
+    onClick={onClick}
+    className="glass-card p-6 flex flex-col items-center text-center space-y-4 hover:bg-white/5 transition-all group cursor-pointer"
+  >
     <div className={`p-4 rounded-2xl ${color} bg-opacity-20 group-hover:scale-110 transition-transform`}>
       <Icon className={color.replace('bg-', 'text-')} size={32} />
     </div>
@@ -50,6 +54,16 @@ export const ToolsPanel: React.FC<{ type: 'media' | 'vector' }> = ({ type }) => 
     e.preventDefault();
   };
 
+  const navToAI = () => {
+     const event = new CustomEvent('nav-tab', { detail: 'ai' });
+     window.dispatchEvent(event);
+  };
+
+  const navToFiles = () => {
+    const event = new CustomEvent('nav-tab', { detail: 'files' });
+    window.dispatchEvent(event);
+  };
+
   return (
     <div className="p-8 space-y-8 h-full overflow-y-auto custom-scrollbar">
       <div className="flex items-center gap-3">
@@ -70,18 +84,21 @@ export const ToolsPanel: React.FC<{ type: 'media' | 'vector' }> = ({ type }) => 
               description="AI-powered background removal for your assets." 
               icon={Scissors} 
               color="bg-neon-pink" 
+              onClick={navToAI}
             />
             <ToolCard 
               title="Asset Library" 
               description="Manage your icons, images, and brand vectors." 
               icon={Layers} 
               color="bg-neon-blue" 
+              onClick={navToFiles}
             />
             <ToolCard 
               title="Image Optimizer" 
               description="Compress and resize images for dashboard performance." 
               icon={Download} 
               color="bg-neon-lime" 
+              onClick={navToAI}
             />
           </>
         ) : (
@@ -91,18 +108,21 @@ export const ToolsPanel: React.FC<{ type: 'media' | 'vector' }> = ({ type }) => 
               description="Design custom SVG icons for your widgets." 
               icon={PenTool} 
               color="bg-neon-blue" 
+              onClick={navToAI}
             />
             <ToolCard 
               title="Vector Importer" 
               description="Import and sanitize external SVG assets." 
               icon={ImagePlus} 
               color="bg-neon-lime" 
+              onClick={navToFiles}
             />
             <ToolCard 
               title="UI Component Builder" 
               description="Create reusable UI elements with custom code." 
               icon={Layers} 
               color="bg-neon-pink" 
+              onClick={navToFiles}
             />
           </>
         )}

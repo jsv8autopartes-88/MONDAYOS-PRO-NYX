@@ -4,7 +4,7 @@ import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
 
 export const TerminalPanel: React.FC = () => {
-  const { widgets, logs, isCarMode, toggleCarMode, addLog, shortcuts, addShortcut, removeShortcut, files } = useDashboard();
+  const { widgets, logs, isCarMode, toggleCarMode, addLog, shortcuts, addShortcut, removeShortcut, files, sendCommand, agents } = useDashboard();
   const [history, setHistory] = useState<string[]>(['OmniDash Terminal v1.0.0', 'Type "help" for a list of commands.']);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -18,18 +18,45 @@ export const TerminalPanel: React.FC = () => {
     }
   }, [history]);
 
-  const handleCommand = (cmd: string) => {
+  const handleCommand = async (cmd: string) => {
     if (!cmd.trim()) return;
     const newHistory = [...history, `> ${cmd}`];
     
+    // Check for agent command shortcut: /agent [id] [cmd]
+    if (cmd.startsWith('/agent ')) {
+      const parts = cmd.split(' ');
+      if (parts.length >= 3) {
+        const agentId = parts[1];
+        const remoteCmd = parts.slice(2).join(' ');
+        const target = agents.find(a => a.id === agentId || a.name.toLowerCase() === agentId.toLowerCase());
+        if (target) {
+          await sendCommand(target.id, remoteCmd);
+          newHistory.push(`Sent remote command [${remoteCmd}] to agent [${target.name}]`);
+        } else {
+          newHistory.push(`Agent [${agentId}] not found.`);
+        }
+      } else {
+        newHistory.push('Usage: /agent [id/name] [command]');
+      }
+      setHistory(newHistory);
+      setInput('');
+      return;
+    }
+
     // Check shortcuts first
     const shortcut = shortcuts.find(s => s.command === cmd);
     if (shortcut) {
       const file = files.find(f => f.id === shortcut.scriptId);
       if (file && file.type === 'script') {
         try {
-          const fn = new Function(file.content);
-          const result = fn();
+          // Pass dashboard tools to the script
+          const scriptContext = { addLog, agents, widgets, toggleCarMode, sendCommand };
+          const fn = new Function('context', `
+            with(context) {
+              ${file.content}
+            }
+          `);
+          const result = fn(scriptContext);
           newHistory.push(`Executed shortcut script: ${file.name}`);
           if (result) newHistory.push(String(result));
           addLog('EXECUTE_SHORTCUT', `Executed shortcut: ${cmd}`);
@@ -46,7 +73,7 @@ export const TerminalPanel: React.FC = () => {
 
     switch (cmd.toLowerCase()) {
       case 'help':
-        newHistory.push('Available commands: help, clear, status, widgets, logs, carmode');
+        newHistory.push('Local commands: help, clear, status, widgets, logs, carmode', 'Remote commands: /agent [id/name] [command]');
         break;
       case 'clear':
         setHistory([]);

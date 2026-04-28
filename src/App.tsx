@@ -12,6 +12,8 @@ import { FileManagerPanel } from './components/FileManagerPanel';
 import { AgentControllerPanel } from './components/AgentControllerPanel';
 import { AgentTreeView } from './components/AgentTreeView';
 import { DevDirectory } from './components/DevDirectory';
+import { RemoteDesk } from './components/RemoteDesk';
+import { AuditSystem } from './components/AuditSystem';
 import { AutopilotController } from './components/AutopilotController';
 import { GuidanceSystem } from './components/GuidanceSystem';
 import { FloatingAssistant } from './components/FloatingAssistant';
@@ -30,9 +32,45 @@ import {
 import { cn } from './lib/utils';
 
 const DashboardContent: React.FC = () => {
-  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents } = useDashboard();
+  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents, addNotification, theme, missions } = useDashboard();
   const [activeTab, setActiveTab] = React.useState('home');
   const [agentSubTab, setAgentSubTab] = React.useState('list');
+
+  // Inject dynamic theme colors
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--color-primary', theme.primary);
+    root.style.setProperty('--color-neon-lime', theme.primary);
+    root.style.setProperty('--color-neon-blue', theme.secondary);
+    root.style.setProperty('--color-dashboard-bg', theme.background);
+    root.style.setProperty('--color-card-bg', theme.cardBg);
+  }, [theme]);
+
+  React.useEffect(() => {
+    const handleHomeNav = () => setActiveTab('home');
+    const handleTabNav = (e: any) => setActiveTab(e.detail);
+    window.addEventListener('nav-home', handleHomeNav);
+    window.addEventListener('nav-tab', handleTabNav);
+    return () => {
+      window.removeEventListener('nav-home', handleHomeNav);
+      window.removeEventListener('nav-tab', handleTabNav);
+    };
+  }, []);
+
+  // No force redirect to agents if no agents - allow users to see Home/Dashboard
+  React.useEffect(() => {
+    if (isAuthReady && agents.length === 0 && activeTab === 'home') {
+      // Just notify once, don't force page change if they want to see the dashboard
+      /*
+      addNotification({
+        title: 'UNIFIED_INSTALLER_ACTIVE',
+        message: 'No active nodes detected. Complete Local Hub Setup to bridge this instance.',
+        featureId: 'INSTALLER_BANNER',
+        type: 'warning'
+      });
+      */
+    }
+  }, [agents.length, isAuthReady]);
 
   if (!isAuthReady) {
     return (
@@ -44,6 +82,13 @@ const DashboardContent: React.FC = () => {
       </div>
     );
   }
+
+  const activeNodesCount = agents.filter(a => a.status === 'online').length;
+  const historicNodesCount = agents.length;
+  const recentLogsCount = logs.filter(l => Date.now() - l.timestamp < 24 * 60 * 60 * 1000).length;
+  const missionProgress = missions.length > 0 
+    ? Math.round((missions.filter(m => m.status === 'completed').length / missions.length) * 100)
+    : 0;
 
   const filteredWidgets = widgets.filter(w => {
     const query = (searchQuery || '').toLowerCase();
@@ -69,27 +114,30 @@ const DashboardContent: React.FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 className="pt-12 pb-24 px-6 max-w-5xl mx-auto space-y-12"
               >
-                {/* Hero Section: Simplified Minimal Metrics */}
+                {/* Hero Section: Dynamic Metrics */}
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="glass-card neon-glow p-8 rounded-[2rem] flex flex-col items-center text-center">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant font-bold mb-4">Daily Logic</span>
-                    <div className="text-4xl font-extrabold tracking-tighter mb-2">1,284</div>
-                    <div className="text-[10px] text-primary font-bold">+14.2% FLOW</div>
+                    <span className="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant font-bold mb-4">Neural Activity (24h)</span>
+                    <div className="text-4xl font-extrabold tracking-tighter mb-2">{recentLogsCount}</div>
+                    <div className="text-[10px] text-primary font-bold uppercase tracking-widest">Op_Logs_Synced</div>
                   </div>
                   <div className="glass-card neon-glow p-8 rounded-[2rem] flex flex-col items-center text-center">
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant font-bold mb-4">Core Velocity</span>
-                    <div className="text-4xl font-extrabold tracking-tighter text-primary mb-2">98.4<span className="text-lg opacity-40 ml-1">/100</span></div>
+                    <span className="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant font-bold mb-4">Mission Completion</span>
+                    <div className="text-4xl font-extrabold tracking-tighter text-primary mb-2">
+                      {missions.length > 0 ? missionProgress : '--'}<span className="text-lg opacity-40 ml-1">%</span>
+                    </div>
                     <div className="w-24 h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
-                      <div className="w-[98%] h-full bg-primary"></div>
+                      <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${missionProgress}%` }}></div>
                     </div>
                   </div>
                   <div className="glass-card neon-glow p-8 rounded-[2rem] flex flex-col items-center text-center">
                     <span className="text-[10px] uppercase tracking-[0.3em] text-on-surface-variant font-bold mb-4">Active Nodes</span>
-                    <div className="text-4xl font-extrabold tracking-tighter mb-2">24</div>
+                    <div className="text-4xl font-extrabold tracking-tighter mb-2">{activeNodesCount}</div>
                     <div className="flex -space-x-1.5 mt-2">
-                      <div className="w-5 h-5 rounded-full bg-white/10 border border-white/20"></div>
-                      <div className="w-5 h-5 rounded-full bg-primary/40 border border-white/20"></div>
-                      <div className="w-5 h-5 rounded-full bg-primary border border-white/20"></div>
+                      {Array.from({ length: Math.min(activeNodesCount, 5) }).map((_, i) => (
+                        <div key={i} className="w-5 h-5 rounded-full bg-primary border border-dashboard-bg shadow-[0_0_10px_rgba(212,255,0,0.5)]"></div>
+                      ))}
+                      {activeNodesCount === 0 && <div className="w-5 h-5 rounded-full bg-white/10 border border-white/20"></div>}
                     </div>
                   </div>
                 </section>
@@ -251,19 +299,23 @@ const DashboardContent: React.FC = () => {
                       <div className="flex-1 space-y-8">
                         <div className="space-y-2">
                           <h3 className="text-5xl font-black tracking-tighter italic">NEON VELOCITY</h3>
-                          <p className="text-primary text-xs font-bold tracking-[0.3em] uppercase">Performance Mode Active</p>
+                          <p className="text-primary text-xs font-bold tracking-[0.3em] uppercase">Simulated Neural Drive</p>
                         </div>
                         <div className="grid grid-cols-2 gap-8">
                           <div>
-                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Battery</div>
-                            <div className="text-4xl font-black italic tracking-tighter">84%</div>
+                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">System Load</div>
+                            <div className="text-4xl font-black italic tracking-tighter">
+                              {Math.floor(Math.random() * 20) + 10}%
+                            </div>
                             <div className="w-full h-1 bg-white/10 mt-2 rounded-full overflow-hidden">
-                              <div className="h-full bg-primary w-[84%] shadow-[0_0_10px_#cff80c]" />
+                              <div className="h-full bg-primary w-[25%] shadow-[0_0_10px_#cff80c]" />
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Range</div>
-                            <div className="text-4xl font-black italic tracking-tighter">342<span className="text-lg ml-1 opacity-50">km</span></div>
+                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Uptime</div>
+                            <div className="text-4xl font-black italic tracking-tighter">
+                              {Math.floor(performance.now() / 3600000)}<span className="text-lg ml-1 opacity-50">h</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -280,12 +332,12 @@ const DashboardContent: React.FC = () => {
 
                       <div className="flex-1 flex flex-col items-end gap-4">
                         <div className="text-right">
-                          <div className="text-7xl font-black italic neon-text">124</div>
-                          <div className="text-xs text-white/40 uppercase tracking-[0.3em] font-bold">KM/H</div>
+                          <div className="text-7xl font-black italic neon-text">{Math.floor(Math.random() * 5) + 60}</div>
+                          <div className="text-xs text-white/40 uppercase tracking-[0.3em] font-bold">OPS/SEC</div>
                         </div>
                         <div className="flex gap-2">
                            {[1,2,3,4,5].map(i => (
-                             <div key={i} className={cn("w-2 h-10 rounded-sm", i < 4 ? "bg-primary" : "bg-white/10")} />
+                             <div key={i} className={cn("w-2 h-10 rounded-sm", i < 3 ? "bg-primary" : "bg-white/10")} />
                            ))}
                         </div>
                       </div>
@@ -422,6 +474,30 @@ const DashboardContent: React.FC = () => {
                 className="h-full"
               >
                 <DevDirectory onNavigate={setActiveTab} />
+              </motion.div>
+            )}
+
+            {activeTab === 'remote' && (
+              <motion.div 
+                key="remote"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <RemoteDesk />
+              </motion.div>
+            )}
+
+            {activeTab === 'audit' && (
+              <motion.div 
+                key="audit"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <AuditSystem />
               </motion.div>
             )}
 

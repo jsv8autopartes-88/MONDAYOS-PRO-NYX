@@ -38,12 +38,23 @@ export interface AppFile {
 export interface RemoteAgent {
   id: string;
   name: string;
-  status: 'online' | 'offline' | 'busy';
+  status: 'online' | 'offline' | 'busy' | 'error';
   platform: string;
   lastHeartbeat: number;
   currentTask?: string;
-  systemInfo?: any;
+  systemInfo?: {
+    hostname: string;
+    release: string;
+    arch: string;
+    mem: string;
+    cpuModel?: string;
+    cpuUsage?: number;
+    uptime?: number;
+    load?: number[];
+  };
+  processes?: { pid: number; name: string; cpu: number; mem: number; user: string }[];
   ownerId: string;
+  updatedAt?: any;
 }
 
 export interface AgentCommand {
@@ -52,6 +63,7 @@ export interface AgentCommand {
   args?: any[];
   status: 'pending' | 'received' | 'executing' | 'completed' | 'failed';
   result?: string;
+  error?: string;
   createdAt: number;
   completedAt?: number;
 }
@@ -92,8 +104,16 @@ export interface AppNotification {
   title: string;
   message: string;
   featureId: string;
-  type: 'info' | 'success' | 'warning';
+  type: 'info' | 'success' | 'warning' | 'error';
   timestamp: number;
+}
+
+export interface WebLink {
+  id: string;
+  title: string;
+  url: string;
+  category?: string;
+  icon?: string;
 }
 
 export interface AppState {
@@ -106,6 +126,7 @@ export interface AppState {
   reportFiles: AppFile[];
   notifications: AppNotification[];
   activeTutorial: string | null;
+  links: WebLink[];
   viewMode: 'grid' | 'list';
   credentials: Record<string, string>;
   notes: string;
@@ -123,5 +144,11 @@ export interface AppState {
     cardBg: string;
   };
   shortcuts: { command: string; scriptId: string }[];
+  assistantSettings?: {
+    isDraggable: boolean;
+    voiceWaveEnabled: boolean;
+    autoListen: boolean;
+    position?: { x: number; y: number };
+  };
 }
 

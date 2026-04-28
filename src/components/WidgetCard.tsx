@@ -17,17 +17,24 @@ interface WidgetCardProps {
 }
 
 export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
-  const { updateWidget, deleteWidget, addLog } = useDashboard();
+  const { updateWidget, deleteWidget, addLog, addMission, sendCommand } = useDashboard();
   const [isEditing, setIsEditing] = useState(false);
   const [code, setCode] = useState(widget.code);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const contextAPI = useMemo(() => ({
+    addMission,
+    sendCommand,
+    addLog,
+    notify: (title: string, message: string) => addLog('WIDGET_NOTIFY', `${title}: ${message}`)
+  }), [addMission, sendCommand, addLog]);
+
   const executeCode = (codeToRun: string) => {
     try {
-      // Basic sandbox-like execution
-      const fn = new Function(codeToRun);
-      const result = fn();
+      // Basic sandbox-like execution with injected API
+      const fn = new Function('api', codeToRun);
+      const result = fn(contextAPI);
       setData(result);
       setError(null);
     } catch (err: any) {
@@ -88,8 +95,8 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
               key={idx}
               onClick={() => {
                 try {
-                  const actionFn = new Function(btn.action);
-                  actionFn();
+                  const actionFn = new Function('api', btn.action);
+                  actionFn(contextAPI);
                 } catch (e) {
                   console.error("Action error:", e);
                 }

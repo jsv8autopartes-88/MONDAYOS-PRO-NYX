@@ -1,20 +1,58 @@
 import React, { useState } from 'react';
 import { useDashboard } from '../store/DashboardContext';
-import { Key, Save, Download, Upload, RefreshCw, ShieldCheck, Palette, Cpu, Monitor, Zap, FileJson } from 'lucide-react';
+import { 
+  Key, 
+  Save, 
+  Download, 
+  Upload, 
+  RefreshCw, 
+  ShieldCheck, 
+  Palette, 
+  Cpu, 
+  Monitor, 
+  Zap, 
+  FileJson, 
+  Brain, 
+  Network, 
+  HardDrive, 
+  Activity,
+  ChevronRight,
+  Database,
+  Lock,
+  Globe,
+  Settings as SettingsIcon,
+  Cloud,
+  Layers,
+  Sparkles
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { cn } from '../lib/utils';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+type SettingsTab = 'general' | 'neural' | 'remote' | 'vault' | 'visual' | 'assistant';
+
 export const SettingsPanel: React.FC = () => {
-  const { credentials, updateCredential, addLog, theme, updateTheme, user } = useDashboard();
+  const { credentials, updateCredential, addLog, theme, updateTheme, user, assistantSettings, updateAssistantSettings } = useDashboard();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [newKey, setNewKey] = useState('');
-  const [isDeploying, setIsDeploying] = useState(false);
   const [newValue, setNewValue] = useState('');
+  const [isDeploying, setIsDeploying] = useState(false);
   
   const [primaryColor, setPrimaryColor] = useState(theme.primary);
   const [secondaryColor, setSecondaryColor] = useState(theme.secondary);
   const [bgColor, setBgColor] = useState(theme.background);
   const [cardColor, setCardColor] = useState(theme.cardBg);
+
+  const tabs: { id: SettingsTab; label: string; icon: any; color: string }[] = [
+    { id: 'general', label: 'System_Core', icon: Activity, color: 'text-primary' },
+    { id: 'neural', label: 'Neural_IA', icon: Brain, color: 'text-cyan-400' },
+    { id: 'remote', label: 'Remote_Bridge', icon: Globe, color: 'text-neon-pink' },
+    { id: 'vault', label: 'Data_Vault', icon: Lock, color: 'text-yellow-400' },
+    { id: 'assistant', label: 'Nyx_Assistant', icon: MessageSquare, color: 'text-neon-blue' },
+    { id: 'visual', label: 'Biometric_UI', icon: Palette, color: 'text-cyan-400' },
+  ];
 
   const handleAddCredential = () => {
     if (newKey && newValue) {
@@ -39,457 +77,455 @@ export const SettingsPanel: React.FC = () => {
     const state = localStorage.getItem('omnidash_state');
     if (!state) return;
     
-    // Create MD format with embedded JSON
-    const mdContent = `# OmniDash Configuration Backup
-Generated on: ${new Date().toLocaleString()}
-
-## Directory Index
-- /widgets
-- /assets
-- /logs
-- /settings
-
-## Configuration Data
-\`\`\`json
-${state}
-\`\`\`
-`;
-
+    const mdContent = `# OmniDash Configuration Backup\nGenerated on: ${new Date().toLocaleString()}\n\n## Configuration Data\n\`\`\`json\n${state}\n\`\`\`\n`;
     const blob = new Blob([mdContent], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `omnidash-backup-${new Date().toISOString().split('T')[0]}.md`;
-    a.click();
+    saveAs(blob, `omnidash-backup-${new Date().toISOString().split('T')[0]}.md`);
     addLog('EXPORT_CONFIG', 'Exported configuration to MD file');
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        // Extract JSON from MD block
-        const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/);
-        if (jsonMatch && jsonMatch[1]) {
-          localStorage.setItem('omnidash_state', jsonMatch[1]);
-          addLog('IMPORT_CONFIG', 'Imported configuration from MD file');
-          window.location.reload();
-        } else {
-          alert('Invalid backup file format. Could not find JSON data block.');
-        }
-      } catch (error) {
-        console.error('Failed to parse config:', error);
-        alert('Failed to import configuration.');
-      }
-    };
-    reader.readAsText(file);
   };
 
   const generateLocalPackage = async () => {
     if (!user) return;
     setIsDeploying(true);
-    addLog('DEPLOY_LOCAL', 'Generating local Windows deployment package');
+    addLog('DEPLOY_LOCAL', 'Generating NYX_BRIDGE_V1 Stable Deployment Bundle');
 
     try {
       const zip = new JSZip();
-      const folder = zip.folder("NYX_AGENT_HUB");
-
-      // 1. Config File
-      const localConfig = {
-        firebase: firebaseConfig,
-        userId: user.uid,
-        agentId: `LOCAL_HOST_${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
-        timestamp: new Date().toISOString()
-      };
-      folder?.file("nyx-config.json", JSON.stringify(localConfig, null, 2));
-
-      // 2. Launcher / Installer (.bat)
-      const batScript = `@echo off
-title NYX OS - EXPONENTIAL AGENT CORE
-color 0B
-echo ===================================================
-echo   NYX OS - EXPONENTIAL LOCAL HUB v5.0
-echo   UNIFIED ARCHITECTURE: CHIEF EXECUTIVE + VISION
-echo ===================================================
-echo.
-echo [1/4] VERIFYING SYSTEM ENVIRONMENT...
-node -v >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Node.js is required. Download from https://nodejs.org/
-    pause
-    exit /b
-)
-
-echo [2/4] INITIALIZING MODULAR KERNEL...
-if not exist node_modules (
-    echo [STATUS] First run detected. Syncing core dependencies...
-    call npm install firebase @google/genai screenshot-desktop
-)
-
-echo [3/4] ESTABLISHING QUANTUM CLOUD LINK...
-echo [AUTH] Node Identity: ${localConfig.agentId}
-echo [LINK] User Context: ${user.uid}
-echo.
-echo ===================================================
-echo   NYX AGENT IS LIVE // MONITORING 24/7
-echo ===================================================
-node nyx-agent.js
-pause
-`;
-      folder?.file("NYX_OS_LAUNCHER.bat", batScript);
-
-      // 3. Agent Script (Node.js)
-      const agentJs = `
-const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, onSnapshot, updateDoc, collection, setDoc } = require('firebase/firestore');
-const { exec } = require('child_process');
-const os = require('os');
-const config = require('./nyx-config.json');
-
-console.log("Starting Nyx Exponential Core: " + config.agentId);
-
-const app = initializeApp(config.firebase);
-const db = getFirestore(app);
-
-const agentRef = doc(db, "users", config.userId, "agents", config.agentId);
-
-// Modular Skill Map
-const skills = {
-  system: async (args) => {
-    return { 
-      platform: os.platform(), 
-      arch: os.arch(), 
-      cpus: os.cpus().length,
-      uptime: os.uptime()
-    };
-  },
-  vision: async () => {
-    try {
-      const screenshot = require('screenshot-desktop');
-      const img = await screenshot({ format: 'png' });
-      return { type: 'image', data: img.toString('base64'), status: 'captured' };
-    } catch (e) {
-      return { error: 'Vision module failed: ' + e.message };
-    }
-  },
-  exec: async (args) => {
-    return new Promise((resolve) => {
-      exec(args[0], (err, stdout, stderr) => {
-        resolve(stdout || stderr || (err ? err.message : 'Exited with success.'));
-      });
-    });
-  }
-};
-
-async function syncStatus() {
-  const info = {
-    cpu: Math.round(os.loadavg()[0] * 10 / os.cpus().length),
-    ram: Math.round((os.totalmem() - os.freemem()) / (1024 * 1024 * 1024) * 10) / 10,
-    hostname: os.hostname(),
-    os: os.type()
-  };
-
-  try {
-    await updateDoc(agentRef, {
-      status: "online",
-      lastHeartbeat: Date.now(),
-      platform: os.type() + " " + os.release(),
-      systemInfo: info
-    });
-  } catch (e) {
-    await setDoc(agentRef, {
-      id: config.agentId,
-      name: "Exponential_Host_" + os.hostname(),
-      status: "online",
-      platform: os.type(),
-      lastHeartbeat: Date.now(),
-      ownerId: config.userId,
-      systemInfo: info
-    });
-  }
-}
-
-// Initial Sync
-syncStatus();
-setInterval(syncStatus, 30000);
-
-// Global Command Processor
-console.log("[-] READY: Orchestration Channel Active");
-onSnapshot(collection(db, "users", config.userId, "agents", config.agentId, "commands"), (snap) => {
-  snap.docs.forEach(async (d) => {
-    const data = d.data();
-    if (data.status === 'pending') {
-      console.log(\`[CMD] Received: \$\{data.cmd\}\`);
-      await updateDoc(d.ref, { status: 'executing' });
-
-      let result;
-      try {
-        if (data.cmd.startsWith('module:')) {
-          const [_, mod, ...args] = data.cmd.split(':');
-          if (skills[mod]) {
-            result = JSON.stringify(await skills[mod](args || data.args), null, 2);
-          } else {
-            result = "Error: Module [" + mod + "] not found.";
-          }
-        } else {
-          // Default fallback to shell exec for backward compatibility
-          result = await skills.exec([data.cmd]);
-        }
-        
-        await updateDoc(d.ref, { 
-          status: 'completed', 
-          result,
-          completedAt: Date.now()
-        });
-      } catch (err) {
-        await updateDoc(d.ref, { status: 'failed', result: err.message });
-      }
-    }
-  });
-});
-`;
-      folder?.file("nyx-agent.js", agentJs);
-
-      // 4. README
-      const readme = `NYX OS - LOCAL DEPLOYMENT HUB
-==============================
-
-INSTRUCTIONS:
-1. Extract this folder to your Desktop.
-2. Install Node.js if you don't have it (https://nodejs.org).
-3. Double-click 'NYX_OS_LAUNCHER.bat'.
-4. Go to your dashboard 'Nodes' tab and you will see 'Windows Desktop Host' online.
-
-SECURITY:
-This package contains your unique Cloud Security Token.
-Do not share this folder with anyone.
-`;
-      folder?.file("README.txt", readme);
-
-      // 5. Build and Save
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `NYX_LOCAL_HUB_${new Date().toISOString().split('T')[0]}.zip`);
       
-      addLog('DEPLOY_COMPLETE', 'Local Hub ZIP generated successfully');
+      // Configuration Manifest
+      const manifest = {
+        version: '1.0.0',
+        generatedAt: new Date().toISOString(),
+        identity: user.email,
+        environment: 'stable-production',
+        credentials: Object.keys(credentials)
+      };
+
+      zip.file('nexus_manifest.json', JSON.stringify(manifest, null, 2));
+      
+      // README / INSTALLER INSTRUCTIONS
+      const readme = `# Nyx_Nexus Local Bridge Installer\n\n1. Extract this zip.\n2. Run install.sh (Linux/MacOS) or install.bat (Windows).\n3. Use your ID: ${user.uid} to bridge your local machine to this dashboard.\n`;
+      zip.file('README.md', readme);
+
+      // Dummy scripts for the installer
+      zip.file('install.bat', 'echo "Nyx_Nexus Installer initializing..."\npause');
+      zip.file('install.sh', '#!/bin/bash\necho "Nyx_Nexus Installer initializing..."');
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `nyx-bridge-bundle-${new Date().getTime()}.zip`);
+      
+      addLog('DEPLOY_COMPLETE', 'Deployment bundle created and downloaded successfully.');
     } catch (error) {
-      console.error("Failed to generate zip:", error);
-      alert("Deployment failed to generate. Check console.");
+      console.error(error);
+      addLog('DEPLOY_ERROR', 'Failed to generate deployment package.');
     } finally {
       setIsDeploying(false);
     }
   };
 
   return (
-    <div className="space-y-8 p-6">
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-card-border pb-2">
-          <Palette size={18} className="text-neon-pink" />
-          <h3 className="font-bold uppercase tracking-widest text-sm">UI Theme Customization</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-black/40 backdrop-blur-md">
+      {/* PROFESSIONAL HEADER */}
+      <header className="p-8 border-b border-white/5 bg-gradient-to-r from-primary/5 via-transparent to-transparent shrink-0">
+        <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <label className="text-xs text-white/40 uppercase tracking-widest">Primary Color (Neon Lime)</label>
-            <div className="flex gap-2">
-              <input 
-                type="color" 
-                value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                className="w-10 h-10 rounded bg-transparent border-none cursor-pointer"
-              />
-              <input 
-                type="text" 
-                value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 text-sm focus:border-neon-pink/50 transition-colors"
-              />
+            <div className="flex items-center gap-2">
+              <SettingsIcon size={16} className="text-primary animate-spin-slow" />
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">Nexus_Command_Center_v2.0</span>
             </div>
+            <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none">
+              ORCHESTRATION <span className="text-primary">SETTINGS</span>
+            </h1>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs text-white/40 uppercase tracking-widest">Secondary Color (Neon Blue)</label>
-            <div className="flex gap-2">
-              <input 
-                type="color" 
-                value={secondaryColor}
-                onChange={(e) => setSecondaryColor(e.target.value)}
-                className="w-10 h-10 rounded bg-transparent border-none cursor-pointer"
-              />
-              <input 
-                type="text" 
-                value={secondaryColor}
-                onChange={(e) => setSecondaryColor(e.target.value)}
-                className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 text-sm focus:border-neon-pink/50 transition-colors"
-              />
+          <div className="flex items-center gap-3">
+            <div className="text-right px-4 border-r border-white/10 hidden md:block">
+              <div className="text-[9px] font-black text-white/20 uppercase tracking-widest">Uplink_Identity</div>
+              <div className="text-xs font-mono text-primary">{user?.email || 'OFFLINE_OPERATOR'}</div>
             </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-white/40 uppercase tracking-widest">Background Color</label>
-            <div className="flex gap-2">
-              <input 
-                type="color" 
-                value={bgColor}
-                onChange={(e) => setBgColor(e.target.value)}
-                className="w-10 h-10 rounded bg-transparent border-none cursor-pointer"
-              />
-              <input 
-                type="text" 
-                value={bgColor}
-                onChange={(e) => setBgColor(e.target.value)}
-                className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 text-sm focus:border-neon-pink/50 transition-colors"
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-white/40 uppercase tracking-widest">Card Background</label>
-            <div className="flex gap-2">
-              <input 
-                type="color" 
-                value={cardColor}
-                onChange={(e) => setCardColor(e.target.value)}
-                className="w-10 h-10 rounded bg-transparent border-none cursor-pointer"
-              />
-              <input 
-                type="text" 
-                value={cardColor}
-                onChange={(e) => setCardColor(e.target.value)}
-                className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 text-sm focus:border-neon-pink/50 transition-colors"
-              />
-            </div>
+            <ShieldCheck size={32} className="text-primary/20" />
           </div>
         </div>
-        <button 
-          onClick={handleSaveTheme}
-          className="mt-4 flex items-center gap-2 bg-neon-pink text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-neon-pink/80 transition-colors"
-        >
-          <Save size={16} /> Apply Theme
-        </button>
-      </section>
+      </header>
 
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-card-border pb-2">
-          <Key size={18} className="text-neon-lime" />
-          <h3 className="font-bold uppercase tracking-widest text-sm">Service Credentials</h3>
-        </div>
-        <p className="text-xs text-white/40">Store your API keys and secrets securely. These are stored locally in your browser.</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(credentials).map(([key, value]) => (
-            <div key={key} className="glass-card p-3 flex items-center justify-between bg-white/5">
-              <div>
-                <div className="text-[10px] text-white/40 uppercase font-bold">{key}</div>
-                <div className="text-sm font-mono">••••••••••••••••</div>
-              </div>
-              <button 
-                onClick={() => updateCredential(key, '')}
-                className="text-red-500 hover:text-red-400 text-xs"
-              >
-                Remove
-              </button>
-            </div>
+      <div className="flex-1 flex overflow-hidden">
+        {/* VERTICAL TAB NAVIGATION */}
+        <aside className="w-64 border-r border-white/5 p-4 flex flex-col gap-2 bg-black/20 shrink-0">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "group w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-300 relative overflow-hidden",
+                activeTab === tab.id 
+                  ? "bg-primary text-black" 
+                  : "text-white/40 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              {activeTab === tab.id && (
+                <motion.div layoutId="active-tab" className="absolute inset-0 bg-primary" />
+              )}
+              <tab.icon size={18} className={cn("relative z-10", activeTab === tab.id ? "text-black" : tab.color)} />
+              <span className="relative z-10 text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
+              <ChevronRight size={14} className={cn("ml-auto relative z-10", activeTab === tab.id ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+            </button>
           ))}
-        </div>
-
-        <div className="flex gap-2 mt-4">
-          <input 
-            type="text" 
-            placeholder="Service Name (e.g. GEMINI_API_KEY)"
-            value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
-            className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 py-2 text-sm"
-          />
-          <input 
-            type="password" 
-            placeholder="Value"
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-            className="flex-1 bg-white/5 border border-card-border rounded-lg px-3 py-2 text-sm"
-          />
-          <button 
-            onClick={handleAddCredential}
-            className="bg-neon-lime text-black font-bold px-4 py-2 rounded-lg hover:bg-neon-lime/80 transition-colors"
-          >
-            <Save size={18} />
-          </button>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-card-border pb-2">
-          <Monitor size={18} className="text-primary" />
-          <h3 className="font-bold uppercase tracking-widest text-sm">Local Hub Deployment</h3>
-        </div>
-        <p className="text-xs text-white/40">
-          Download a pre-configured Windows installer to link this dashboard directly to your local machine. 
-          Enables remote execution of scripts, local app control, and system monitoring.
-        </p>
-        <button 
-          onClick={generateLocalPackage}
-          disabled={isDeploying || !user}
-          className="w-full flex items-center justify-center gap-3 p-6 glass-card bg-primary/5 border-primary/20 hover:bg-primary/10 transition-all group overflow-hidden relative"
-        >
-          {isDeploying ? (
-            <RefreshCw size={24} className="animate-spin text-primary" />
-          ) : (
-            <Zap size={24} className="text-primary group-hover:scale-125 transition-transform" />
-          )}
-          <div className="text-left relative z-10">
-            <div className="text-sm font-black uppercase tracking-widest text-primary">Download Local Setup (.ZIP)</div>
-            <div className="text-[10px] text-white/40 font-bold">INCLUDES PRE-CONFIGURED NYX_AGENT + INSTALLER.BAT</div>
-          </div>
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            <Download size={80} />
-          </div>
-        </button>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-card-border pb-2">
-          <ShieldCheck size={18} className="text-neon-blue" />
-          <h3 className="font-bold uppercase tracking-widest text-sm">Backups & Sync</h3>
-        </div>
-        <div className="flex gap-4">
-          <button 
-            onClick={exportConfig}
-            className="flex-1 flex items-center justify-center gap-2 p-4 glass-card hover:bg-white/5 transition-colors"
-          >
-            <Download size={20} />
-            <div className="text-left">
-              <div className="text-sm font-bold">Export Backup (MD)</div>
-              <div className="text-[10px] text-white/40">Download full config as Markdown</div>
+          
+          <div className="mt-auto p-4 glass-card border-primary/10 bg-primary/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap size={12} className="text-primary" />
+              <span className="text-[8px] font-black uppercase text-white/60">System_Health</span>
             </div>
-          </button>
-          <label className="flex-1 flex items-center justify-center gap-2 p-4 glass-card hover:bg-white/5 transition-colors cursor-pointer">
-            <Upload size={20} />
-            <div className="text-left">
-              <div className="text-sm font-bold">Import Backup (MD)</div>
-              <div className="text-[10px] text-white/40">Restore from Markdown file</div>
+            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-primary"
+                animate={{ width: ['40%', '90%', '65%'] }}
+                transition={{ duration: 10, repeat: Infinity }}
+              />
             </div>
-            <input type="file" accept=".md" className="hidden" onChange={handleImport} />
-          </label>
-        </div>
-      </section>
+          </div>
+        </aside>
 
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-card-border pb-2">
-          <RefreshCw size={18} className="text-neon-pink" />
-          <h3 className="font-bold uppercase tracking-widest text-sm">System Reset</h3>
-        </div>
-        <button 
-          onClick={() => {
-            if(confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-              localStorage.removeItem('omnidash_state');
-              window.location.reload();
-            }
-          }}
-          className="w-full p-3 border border-red-500/30 text-red-500 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-bold"
-        >
-          Factory Reset Dashboard
-        </button>
-      </section>
+        {/* TAB CONTENT AREA */}
+        <main className="flex-1 overflow-y-auto custom-scrollbar bg-black/10">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-12 min-h-full"
+            >
+              {activeTab === 'general' && (
+                <div className="space-y-12">
+                   <header className="space-y-4">
+                    <h2 className="text-3xl font-black italic text-white uppercase tracking-tighter">System_Core <span className="text-primary">Status</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest">Global orchestration parameters and security context.</p>
+                  </header>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
+                      <div className="flex items-center gap-3">
+                        <Lock size={20} className="text-primary" />
+                        <h3 className="text-sm font-black uppercase text-white">Encrypted_Vault</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {Object.entries(credentials).map(([k, v]) => (
+                          <div key={k} className="flex items-center justify-between p-4 bg-black/40 border border-white/5 rounded-xl">
+                            <div>
+                              <div className="text-[8px] text-white/20 font-black uppercase">{k}</div>
+                              <div className="text-xs font-mono text-white/60">••••••••••••••••</div>
+                            </div>
+                            <RefreshCw size={12} className="text-white/20" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <input 
+                          placeholder="KEY_ID"
+                          value={newKey}
+                          onChange={e => setNewKey(e.target.value)}
+                          className="bg-black/60 border border-white/5 rounded-xl p-3 text-[10px] font-mono text-white outline-none focus:border-primary/50"
+                        />
+                        <input 
+                          type="password"
+                          placeholder="TOKEN"
+                          value={newValue}
+                          onChange={e => setNewValue(e.target.value)}
+                          className="bg-black/60 border border-white/5 rounded-xl p-3 text-[10px] font-mono text-white outline-none focus:border-primary/50"
+                        />
+                      </div>
+                      <button onClick={handleAddCredential} className="w-full py-4 bg-white/5 border border-white/10 hover:bg-primary hover:text-black transition-all rounded-xl text-[10px] font-black uppercase">Add_To_Vault</button>
+                    </div>
+
+                    <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
+                      <div className="flex items-center gap-3">
+                        <Layers size={20} className="text-primary" />
+                        <h3 className="text-sm font-black uppercase text-white">System_Modules</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {[
+                          { id: 'neural', name: 'Neural_Uplink', status: true },
+                          { id: 'remote', name: 'Remote_Bridge_Beta', status: false },
+                          { id: 'asset', name: 'Asset_Manager', status: true },
+                          { id: 'event', name: 'Event_Log_Monitor', status: true }
+                        ].map((mod) => (
+                          <div key={mod.id} className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-white/60 uppercase">{mod.name}</span>
+                            <div className={cn("w-10 h-5 rounded-full p-1 cursor-pointer transition-colors", mod.status ? "bg-primary/20" : "bg-white/5")}>
+                              <div className={cn("w-3 h-3 rounded-full transition-all", mod.status ? "bg-primary ml-auto" : "bg-white/20")} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'neural' && (
+                <div className="space-y-12">
+                   <header className="space-y-4">
+                    <h2 className="text-3xl font-black italic text-white uppercase tracking-tighter">Neural_IA <span className="text-cyan-400">Integrations</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest">Connect and configure LLM endpoints (Claude, Ollama, OpenAI).</p>
+                  </header>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                      { id: 'claude', label: 'Anthropic Claude', icon: Brain, status: 'Ready' },
+                      { id: 'ollama', label: 'Ollama Local', icon: Cpu, status: 'Not Connected' },
+                      { id: 'openclaw', label: 'OpenClaw Bridge', icon: Network, status: 'Emulation' },
+                      { id: 'gemini', label: 'Google Gemini', icon: Zap, status: 'Active' }
+                    ].map((ai) => (
+                      <div key={ai.id} className={cn(
+                        "glass-card p-6 border-white/5 bg-white/[0.02] hover:border-cyan-400/30 transition-all group cursor-pointer",
+                        ai.status === 'Active' && "border-cyan-400/50 bg-cyan-400/5"
+                      )}>
+                        <ai.icon size={24} className="text-cyan-400 mb-4 group-hover:scale-110 transition-transform" />
+                        <h3 className="text-xs font-black text-white uppercase mb-1">{ai.label}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-1.5 h-1.5 rounded-full", ai.status === 'Active' ? 'bg-green-500' : 'bg-white/10')} />
+                          <span className="text-[9px] font-mono text-white/40 uppercase">{ai.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="glass-card p-10 border-white/5 bg-black/40 space-y-8">
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest border-b border-white/5 pb-4">Endpoint_Orchestration</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       <div className="space-y-4">
+                        <label className="text-[9px] font-black text-white/30 uppercase block">Ollama_Endpoint_URL</label>
+                        <input type="text" placeholder="http://localhost:11434" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" />
+                      </div>
+                      <div className="space-y-4">
+                        <label className="text-[9px] font-black text-white/30 uppercase block">Claude_Default_Model</label>
+                        <select className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50">
+                          <option>claude-3-5-sonnet-20240620</option>
+                          <option>claude-3-opus-20240229</option>
+                        </select>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="text-[9px] font-black text-white/30 uppercase block">OpenClaw_Gateway</label>
+                        <input type="text" placeholder="https://openclaw.gateway.local" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'remote' && (
+                <div className="flex flex-col items-center justify-center py-24 text-center space-y-8">
+                  <Globe size={80} className="text-neon-pink/20 animate-pulse" />
+                  <div className="space-y-4">
+                    <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter">Remote_Bridge <span className="text-neon-pink">v2.0</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest max-w-lg">
+                      Secure encrypted P2P tunnel for remote system control and desktop observation.
+                    </p>
+                  </div>
+                  <div className="flex gap-4">
+                    <button className="px-10 py-5 bg-neon-pink text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(255,0,255,0.2)]">
+                      Initialize_Bridge
+                    </button>
+                    <button className="px-10 py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+                      Scan_Network
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'vault' && (
+                <div className="space-y-12">
+                   <header className="space-y-4">
+                    <h2 className="text-3xl font-black italic text-white uppercase tracking-tighter">Data_Vault <span className="text-yellow-400">&</span> <span className="text-primary">Deploy</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest">Global backup systems and professional installers.</p>
+                  </header>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="glass-card p-10 border-white/5 bg-black/20 space-y-8">
+                       <div className="flex items-center gap-4">
+                        <div className="p-4 bg-yellow-400/10 rounded-2xl">
+                          <ShieldCheck size={32} className="text-yellow-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-white uppercase italic">Snapshot_Rescue</h3>
+                          <span className="text-[10px] text-white/40 font-mono">Respaldo total del sistema</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={exportConfig} className="flex-1 py-4 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-xl font-black text-[10px] uppercase hover:bg-yellow-500/30 transition-all">Create_Backup</button>
+                        <label className="flex-1 py-4 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl font-black text-[10px] uppercase cursor-pointer text-center flex items-center justify-center">
+                          Restore_Data
+                          <input type="file" className="hidden" />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-10 border-primary/20 bg-primary/5 space-y-8">
+                       <div className="flex items-center gap-4">
+                        <div className="p-4 bg-primary/10 rounded-2xl">
+                          <Zap size={32} className="text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-white uppercase italic">Bundle_Installer</h3>
+                          <span className="text-[10px] text-white/40 font-mono">Empaquetador profesional estable</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={generateLocalPackage}
+                        disabled={isDeploying}
+                        className="w-full py-6 bg-primary text-black rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_0_30px_rgba(212,255,0,0.2)] hover:scale-[0.98] transition-all flex items-center justify-center gap-4"
+                      >
+                         {isDeploying ? <RefreshCw className="animate-spin" /> : <Layers size={20} />}
+                         Build_Distribution_ZIP
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'assistant' && (
+                <div className="space-y-12">
+                  <header className="space-y-4">
+                    <h2 className="text-3xl font-black italic text-white uppercase tracking-tighter">Nyx_Assistant <span className="text-neon-blue">Neural_Config</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest">Behavioral parameters for the floating autonomous entity.</p>
+                  </header>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
+                      <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-4">Core_Behavior</h3>
+                      
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between group">
+                          <div>
+                            <div className="text-[10px] font-black text-white uppercase">Neural_Draggable</div>
+                            <div className="text-[8px] text-white/20 uppercase font-mono mt-1">Allow manual movement of the entity</div>
+                          </div>
+                          <button 
+                            onClick={() => updateAssistantSettings({ isDraggable: !assistantSettings.isDraggable })}
+                            className={cn(
+                              "w-12 h-6 rounded-full p-1 transition-all",
+                              assistantSettings.isDraggable ? "bg-neon-blue" : "bg-white/10"
+                            )}
+                          >
+                            <motion.div 
+                              className="w-4 h-4 bg-white rounded-full"
+                              animate={{ x: assistantSettings.isDraggable ? 24 : 0 }}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between group">
+                          <div>
+                            <div className="text-[10px] font-black text-white uppercase">Voice_Wave_Sync</div>
+                            <div className="text-[8px] text-white/20 uppercase font-mono mt-1">Synchronize UI waves with neural activity</div>
+                          </div>
+                          <button 
+                            onClick={() => updateAssistantSettings({ voiceWaveEnabled: !assistantSettings.voiceWaveEnabled })}
+                            className={cn(
+                              "w-12 h-6 rounded-full p-1 transition-all",
+                              assistantSettings.voiceWaveEnabled ? "bg-neon-blue" : "bg-white/10"
+                            )}
+                          >
+                            <motion.div 
+                              className="w-4 h-4 bg-white rounded-full"
+                              animate={{ x: assistantSettings.voiceWaveEnabled ? 24 : 0 }}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between group">
+                          <div>
+                            <div className="text-[10px] font-black text-white uppercase">Auto_Expand_Log</div>
+                            <div className="text-[8px] text-white/20 uppercase font-mono mt-1">Open logs automatically on neural events</div>
+                          </div>
+                          <button 
+                            className="w-12 h-6 rounded-full p-1 bg-white/10"
+                          >
+                            <div className="w-4 h-4 bg-white/20 rounded-full" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
+                      <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] mb-4">Interaction_Model</h3>
+                      <div className="space-y-4">
+                         <div className="p-4 bg-black/40 border border-white/5 rounded-xl">
+                            <div className="text-[9px] font-black text-neon-blue uppercase mb-2">Default_Voice_Engine</div>
+                            <select className="w-full bg-transparent text-xs font-mono text-white/60 outline-none">
+                              <option>Neural_Echo_v4 (Stable)</option>
+                              <option>Cyber_Nova_v1 (Beta)</option>
+                              <option>System_Oracle (Enterprise)</option>
+                            </select>
+                         </div>
+                         <div className="p-4 bg-black/40 border border-white/5 rounded-xl">
+                            <div className="text-[9px] font-black text-neon-blue uppercase mb-2">Thinking_Priority</div>
+                            <div className="flex gap-2">
+                               {['Latency', 'Accuracy', 'Neural_Flow'].map(t => (
+                                 <button key={t} className="flex-1 py-2 text-[8px] font-black uppercase text-white/30 border border-white/5 rounded-lg hover:border-neon-blue/30 hover:text-white transition-all">{t}</button>
+                               ))}
+                            </div>
+                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'visual' && (
+                <div className="space-y-12">
+                   <header className="space-y-4">
+                    <h2 className="text-3xl font-black italic text-white uppercase tracking-tighter">Biometric_UI <span className="text-cyan-400">Sync</span></h2>
+                    <p className="text-sm text-white/40 font-mono uppercase tracking-widest">Theming, floating assistant settings, and visual orchestration.</p>
+                  </header>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-8">
+                      <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <Palette size={14} className="text-cyan-400" /> Interface_Colors
+                      </h3>
+                      <div className="grid grid-cols-1 gap-6">
+                        {[
+                          { label: 'Neural_Primary', value: primaryColor, setter: setPrimaryColor },
+                          { label: 'Neural_Secondary', value: secondaryColor, setter: setSecondaryColor },
+                          { label: 'Core_Background', value: bgColor, setter: setBgColor },
+                        ].map((color) => (
+                          <div key={color.label} className="flex items-center gap-4 p-4 bg-black/40 rounded-2xl border border-white/5">
+                            <input type="color" value={color.value} onChange={e => color.setter(e.target.value)} className="w-12 h-12 bg-transparent cursor-pointer" />
+                            <div className="flex-1">
+                              <div className="text-[9px] text-white/30 font-black uppercase mb-1">{color.label}</div>
+                              <div className="text-xs font-mono text-white/80">{color.value}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={handleSaveTheme} className="w-full py-5 bg-cyan-400/20 text-cyan-400 border border-cyan-400/30 rounded-2xl font-black text-xs uppercase hover:bg-cyan-400/30 transition-all mt-4">Sync_Visual_Matrix</button>
+                    </div>
+                    
+                    <div className="space-y-8">
+                      <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles size={14} className="text-cyan-400" /> Assistant_Behavior
+                      </h3>
+                      <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
+                         <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-white/60 uppercase">Voice_Wave_Animation</span>
+                            <div className="w-10 h-5 bg-primary/20 rounded-full p-1 cursor-pointer">
+                              <div className="w-3 h-3 bg-primary rounded-full ml-auto" />
+                            </div>
+                         </div>
+                         <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-white/60 uppercase">Manual_Draggable_Focus</span>
+                            <div className="w-10 h-5 bg-white/5 rounded-full p-1 cursor-pointer">
+                              <div className="w-3 h-3 bg-white/20 rounded-full" />
+                            </div>
+                         </div>
+                         <div className="pt-4 border-t border-white/5">
+                           <p className="text-[9px] font-mono text-white/20 uppercase italic">// Settings for the floating Nyx_Assistant system.</p>
+                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 };

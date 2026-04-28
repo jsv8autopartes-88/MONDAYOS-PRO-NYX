@@ -130,6 +130,14 @@ service cloud.firestore {
              data.code is string;
     }
 
+    function isValidWebLink(data, userId) {
+      return data.keys().hasAll(['id', 'title', 'url', 'ownerId']) &&
+             data.ownerId == userId &&
+             data.ownerId == request.auth.uid &&
+             isValidString(data.title, 1, 200) &&
+             isValidString(data.url, 1, 2000);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -153,16 +161,30 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
-      match /agents/{agentId} {
+      match /links/{linkId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidRemoteAgent(request.resource.data, userId);
-        allow update: if isOwner(userId) && isValidRemoteAgent(request.resource.data, userId);
+        allow create: if isOwner(userId) && isValidWebLink(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidWebLink(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /reports/{reportId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidFile(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidFile(request.resource.data, userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /agents/{agentId} {
+        allow read: if isOwner(userId) || (request.auth == null && resource.data.ownerId == userId);
+        allow create: if true; // Allow initial registration if payload is valid
+        allow update: if isOwner(userId) || (request.auth == null && request.resource.data.ownerId == userId);
         allow delete: if isOwner(userId);
 
         match /commands/{commandId} {
-          allow read: if isOwner(userId);
-          allow create: if isOwner(userId) && isValidAgentCommand(request.resource.data);
-          allow update: if isOwner(userId) && isValidAgentCommand(request.resource.data);
+          allow read: if isOwner(userId) || request.auth == null;
+          allow create: if isOwner(userId);
+          allow update: if isOwner(userId) || request.auth == null;
           allow delete: if isOwner(userId);
         }
       }

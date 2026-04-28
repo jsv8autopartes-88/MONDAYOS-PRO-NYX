@@ -5,10 +5,18 @@ import { GoogleGenAI, Type, ThinkingLevel, Modality } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
 
+import { NeuralService, AIProvider } from '../lib/neuralService';
+
 export const AIPanel: React.FC = () => {
-  const { credentials, addLog, aiContext, updateAiContext } = useDashboard();
+  const { credentials, addLog, aiContext, updateAiContext, searchQuery, agents, logs, addNotification } = useDashboard();
+  const [provider, setProvider] = useState<AIProvider>('gemini');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string, type?: 'text' | 'image' }[]>([]);
+  
+  const filteredMessages = messages.filter(msg => {
+    const query = (searchQuery || '').toLowerCase();
+    return msg.content.toLowerCase().includes(query);
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
   const [showMemory, setShowMemory] = useState(false);
@@ -18,7 +26,6 @@ export const AIPanel: React.FC = () => {
   const [isFastMode, setIsFastMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -27,21 +34,15 @@ export const AIPanel: React.FC = () => {
     }
   }, [messages, showMemory]);
 
-  const getAI = () => {
-    const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      // Return a message or handle appropriately. For simplicity, we assume key exists as per instructions.
-      return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-    }
-    return new GoogleGenAI({ apiKey });
-  };
-
   const handleTTS = async (text: string, index: number) => {
+    // TTS still needs direct Gemini for now or a service method
+    // I'll keep it as is but using the process key if available
     if (isSpeaking !== null) return;
     setIsSpeaking(index);
 
     try {
-      const ai = getAI();
+      const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
+      const ai = new GoogleGenAI(apiKey!);
       const response = await ai.models.generateContent({
         model: "gemini-3.1-flash-tts-preview",
         contents: [{ parts: [{ text: `Say clearly: ${text.substring(0, 500)}` }] }],
@@ -91,9 +92,9 @@ export const AIPanel: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const ai = getAI();
-
       if (mode === 'image') {
+        const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
+        const ai = new GoogleGenAI(apiKey!);
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image-preview',
           contents: { parts: [{ text: userMessage }] },
@@ -117,32 +118,57 @@ export const AIPanel: React.FC = () => {
           setMessages(prev => [...prev, { role: 'ai', content: 'Failed to generate image.' }]);
         }
       } else {
-        // Multi-turn chat
-        const modelToUse = isFastMode ? 'gemini-3.1-flash-lite-preview' : 'gemini-3.1-pro-preview';
+        const agentsInfo = agents.map(a => `${a.name}(${a.status})`).join(', ');
+        const systemContext = `${aiContext}\n\nDASHBOARD_CURRENT_STATE:\n- Agents: ${agentsInfo}\n- Recent Logs: ${logs.slice(-5).map(l => l.details).join('; ')}\n- Search Query: ${searchQuery || 'None'}`;
         
-        if (!chatRef.current || chatRef.current.model !== modelToUse) {
-          chatRef.current = ai.chats.create({
-            model: modelToUse,
-            config: {
-              systemInstruction: aiContext,
-              tools: [{ googleSearch: {} }],
-              toolConfig: { includeServerSideToolInvocations: true },
-              thinkingConfig: isHighThinking && !isFastMode ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
-            }
-          });
-        }
+        const finalPrompt = `${systemContext}\n\nUSER_REQUEST: ${userMessage}`;
+        const response = await NeuralService.generate(finalPrompt, provider);
 
-        const response = await chatRef.current.sendMessage({ message: userMessage });
-        const text = response.text || 'No response from AI.';
-
-        setMessages(prev => [...prev, { role: 'ai', content: text }]);
-        addLog('AI_CHAT', `AI responded to: ${userMessage.substring(0, 30)}...`);
+        setMessages(prev => [...prev, { role: 'ai', content: response.content }]);
+        addLog('AI_CHAT', `[${provider}] AI responded to: ${userMessage.substring(0, 30)}...`);
       }
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: 'ai', content: `Error: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: 'ai', content: `Neural Error: ${error.message}` }]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const startVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      addNotification({ title: 'Speech Not Supported', message: 'Your browser does not support Speech Recognition.', type: 'error', featureId: 'SPEECH_RECOGNITION' });
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'es-ES'; // Set to user lang
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      addLog('AI_VOICE_LISTEN', 'Voice recognition started');
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+      addLog('AI_VOICE_RESULT', `Voice input capture: ${transcript}`);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error(event.error);
+      setIsListening(false);
+      addNotification({ title: 'Voice Error', message: `Recognition failed: ${event.error}`, type: 'error', featureId: 'SPEECH_RECOGNITION' });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
   };
 
   const saveMemory = () => {
@@ -150,16 +176,6 @@ export const AIPanel: React.FC = () => {
     setShowMemory(false);
     chatRef.current = null; // Reset chat to apply new context
     addLog('UPDATE_AI_CONTEXT', 'Updated AI Assistant system context');
-  };
-
-  const startVoiceInput = () => {
-    setIsListening(true);
-    addLog('AI_VOICE_LISTEN', 'User started voice input');
-    // Mocking voice to text for now
-    setTimeout(() => {
-      setIsListening(false);
-      setInput('Hello Nyx, execute system audit.');
-    }, 2000);
   };
 
   return (
@@ -276,6 +292,21 @@ export const AIPanel: React.FC = () => {
             </button>
           </div>
         ) : (
+          <>
+          <div className="px-8 pt-6 flex items-center gap-2 shrink-0 overflow-x-auto scrollbar-hide">
+            {(['gemini', 'claude', 'ollama', 'openclaw'] as AIProvider[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setProvider(p)}
+                className={cn(
+                  "px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border border-white/5",
+                  provider === p ? "bg-primary text-black" : "bg-white/5 text-white/40 hover:text-white"
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-20">
@@ -290,7 +321,7 @@ export const AIPanel: React.FC = () => {
                 </div>
               </div>
             )}
-            {messages.map((msg, i) => (
+            {filteredMessages.map((msg, i) => (
               <div key={i} className={cn("flex gap-6", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}>
                 <div className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg",
@@ -343,6 +374,7 @@ export const AIPanel: React.FC = () => {
               </div>
             )}
           </div>
+          </>
         )}
 
         {mode !== 'voice' && (

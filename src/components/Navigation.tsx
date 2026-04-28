@@ -20,7 +20,8 @@ import {
   Globe,
   Folder,
   Activity,
-  Database
+  Database,
+  ClipboardCheck
 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
@@ -32,47 +33,75 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { isCarMode, toggleCarMode, addWidget } = useDashboard();
+  const { isCarMode, toggleCarMode, addWidget, isAutopilotActive, agents } = useDashboard();
+  const onlineAgents = agents.filter(a => a.status === 'online').length;
 
   const navItems = [
     { icon: Home, label: 'Dashboard', id: 'home' },
-    { icon: MessageSquare, label: 'AI Assistant', id: 'ai' },
-    { icon: Activity, label: 'Nodes', id: 'agents' },
-    { icon: Folder, label: 'Library', id: 'files' },
-    { icon: FileText, label: 'Notes', id: 'notes' },
-    { icon: Globe, label: 'Web Links', id: 'links' },
-    { icon: ImageIcon, label: 'Media', id: 'media' },
-    { icon: PenTool, label: 'Vector', id: 'vector' },
-    { icon: Terminal, label: 'Terminal', id: 'terminal' },
+    { icon: Zap, label: 'Network Control', id: 'agents', badge: onlineAgents > 0 ? onlineAgents : undefined },
+    { icon: MessageSquare, label: 'Neural Chat', id: 'ai' },
+    { icon: Folder, label: 'Asset Library', id: 'files' },
+    { icon: FileText, label: 'Technical Notes', id: 'notes' },
+    { icon: Globe, label: 'External Links', id: 'links' },
+    { icon: activityIcon(), label: 'Autopilot', id: 'autopilot', active: isAutopilotActive },
+    { icon: Globe, label: 'RemoteDesk', id: 'remote' },
+    { icon: ClipboardCheck, label: 'Audit System', id: 'audit' },
     { icon: Database, label: 'Dev Directory', id: 'dev' },
-    { icon: History, label: 'Logs', id: 'logs' },
-    { icon: Settings, label: 'Settings', id: 'settings' },
+    { icon: Terminal, label: 'Core Terminal', id: 'terminal' },
+    { icon: Settings, label: 'Control Center', id: 'settings' },
+    { icon: History, label: 'Event Logs', id: 'logs' },
   ];
+
+  function activityIcon() {
+    return isAutopilotActive ? Activity : PenTool;
+  }
 
   return (
     <div className="w-[82px] lg:w-64 bg-black border-r border-white/5 flex flex-col h-full transition-all duration-300 shadow-[10px_0_30px_-15px_rgba(207,248,12,0.05)]">
       <div className="p-6 flex flex-col gap-1 items-center lg:items-start">
-        <h2 className="text-primary font-black tracking-[0.2em] uppercase text-[10px] lg:text-sm text-center lg:text-left">SYSTEM_ADMIN</h2>
-        <p className="text-neutral-600 font-bold text-[8px] lg:text-[10px] tracking-[0.2em] hidden lg:block">v4.0.2-ALPHA</p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <h2 className="text-primary font-black tracking-[0.2em] uppercase text-[10px] lg:text-sm text-center lg:text-left">NYX_OS_PRO</h2>
+        </div>
+        <p className="text-neutral-600 font-bold text-[8px] lg:text-[10px] tracking-[0.2em] hidden lg:block uppercase">Security Auditor Edition</p>
       </div>
 
-      <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto custom-scrollbar font-bold tracking-widest uppercase text-[11px]">
+      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto custom-scrollbar font-bold tracking-widest uppercase text-[10px]">
         {navItems.map((item) => (
           <button
             key={item.id}
-            data-id={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "w-full flex items-center justify-center lg:justify-start gap-4 py-4 px-0 lg:px-6 transition-all duration-300 group",
+              "w-full flex items-center justify-center lg:justify-start gap-4 py-3.5 px-0 lg:px-6 transition-all duration-300 group relative",
               activeTab === item.id 
-                ? "text-primary bg-gradient-to-r from-primary/10 to-transparent border-l-4 border-primary translate-x-1" 
+                ? "text-primary bg-gradient-to-r from-primary/10 to-transparent border-l-2 border-primary" 
                 : "text-neutral-600 hover:text-neutral-300 hover:bg-white/5"
             )}
           >
-            <item.icon size={24} className={cn(activeTab === item.id ? "text-primary" : "text-neutral-600 group-hover:text-primary")} />
-            <span className="hidden lg:block">
+            <div className="relative">
+              <item.icon size={20} className={cn(
+                "transition-all duration-300",
+                activeTab === item.id ? "text-primary scale-110" : "text-neutral-600 group-hover:text-primary",
+                item.id === 'autopilot' && isAutopilotActive ? "animate-spin-slow text-neon-lime" : ""
+              )} />
+              {item.badge !== undefined && (
+                <span className="absolute -top-2 -right-2 bg-primary text-black text-[8px] px-1 rounded-sm min-w-[12px] flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
+            </div>
+            <span className={cn("hidden lg:block transition-colors", activeTab === item.id ? "text-white" : "")}>
               {item.label}
             </span>
+            {item.id === 'autopilot' && isAutopilotActive && (
+              <div className="absolute right-4 hidden lg:block">
+                <div className="flex gap-0.5">
+                  <div className="w-0.5 h-3 bg-neon-lime animate-pulse" />
+                  <div className="w-0.5 h-3 bg-neon-lime animate-pulse delay-75" />
+                  <div className="w-0.5 h-3 bg-neon-lime animate-pulse delay-150" />
+                </div>
+              </div>
+            )}
           </button>
         ))}
       </nav>
@@ -103,10 +132,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
 export const TopBar: React.FC = () => {
   const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady } = useDashboard();
-
+  
+  // Use a hacky way to access setActiveTab since it's in App.tsx
+  // Actually, better to just let Navigation.tsx handle it or use a global state if needed
+  // But usually Navigation TopBar is part of the layout.
+  
   return (
     <div className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-black/40 backdrop-blur-xl sticky top-0 z-50 shadow-[0_0_15px_rgba(207,248,12,0.1)]">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('nav-home'))}>
         <Zap className="text-primary" size={20} fill="currentColor" />
         <h1 className="text-primary font-black italic tracking-tighter text-lg">MONDAYOS-PRO-NYX</h1>
       </div>

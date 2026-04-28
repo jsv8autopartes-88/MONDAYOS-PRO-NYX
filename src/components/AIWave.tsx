@@ -1,21 +1,27 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 
-export const AIWave: React.FC<{ isListening?: boolean }> = ({ isListening = false }) => {
+export const AIWave: React.FC<{ isListening?: boolean, isProcessing?: boolean }> = ({ isListening = false, isProcessing = false }) => {
+  const isActive = isListening || isProcessing;
+  
   return (
-    <div className="flex items-center justify-center gap-1 h-8 px-4">
-      {[...Array(5)].map((_, i) => (
+    <div className="flex items-center justify-center gap-1.5 h-10 px-4">
+      {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.3].map((h, i) => (
         <motion.div
           key={i}
-          className="w-1 bg-neon-lime rounded-full"
+          className={cn(
+            "w-1 rounded-full",
+            isProcessing ? "bg-neon-blue" : "bg-primary"
+          )}
           animate={{
-            height: isListening ? [8, 24, 8] : [4, 8, 4],
-            opacity: isListening ? [0.5, 1, 0.5] : 0.3,
+            height: isActive ? [h * 32, (1 - h) * 32, h * 32] : 4,
+            opacity: isActive ? [0.6, 1, 0.6] : 0.2,
           }}
           transition={{
-            duration: 0.8,
+            duration: isProcessing ? 0.4 : 0.6,
             repeat: Infinity,
-            delay: i * 0.1,
+            delay: i * 0.05,
             ease: "easeInOut",
           }}
         />

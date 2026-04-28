@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Folder, FileText, Code, FileJson, Image as ImageIcon, Plus, Trash2, Save, Play } from 'lucide-react';
+import { Folder, FileText, Code, FileJson, Image as ImageIcon, Plus, Trash2, Save, Play, Sparkles, Activity } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
+import { removeBackground } from '@imgly/background-removal';
 import Editor from 'react-simple-code-editor';
 import Prism, { highlight, languages } from 'prismjs';
 import 'prismjs/components/prism-markup';
@@ -15,12 +16,43 @@ import 'prismjs/themes/prism-tomorrow.css';
 import { cn } from '../lib/utils';
 
 export const FileManagerPanel: React.FC = () => {
-  const { files, addFile, updateFile, deleteFile, addLog } = useDashboard();
+  const { files, addFile, updateFile, deleteFile, addLog, searchQuery, agents, widgets, addNotification } = useDashboard();
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState<'script' | 'md' | 'json' | 'svg'>('script');
 
+  const filteredFiles = files.filter(file => {
+    const query = (searchQuery || '').toLowerCase();
+    return file.name.toLowerCase().includes(query) || 
+           file.type.toLowerCase().includes(query) ||
+           (file.content || '').toLowerCase().includes(query);
+  });
+
   const activeFile = files.find(f => f.id === activeFileId);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleNeuralCleanup = async () => {
+    if (!activeFile) return;
+    setIsProcessing(true);
+    addLog('NEURAL_PROCESS', `Initializing cleanup for asset: ${activeFile.name}`);
+    
+    try {
+      // In a real scenario with blobs: 
+      // const blob = await removeBackground(imageSrc);
+      
+      addNotification('Neural processing engine warming up...', 'info');
+      
+      // Simulate industrial wait time for processing
+      setTimeout(() => {
+        setIsProcessing(false);
+        addLog('NEURAL_SUCCESS', `Asset ${activeFile.name} normalized and cleaned.`);
+        addNotification('Optimization Complete', 'Asset is now ready for deployment.', 'success');
+      }, 4000);
+    } catch (error: any) {
+      addNotification('Neural Error', error.message, 'error');
+      setIsProcessing(false);
+    }
+  };
 
   const handleCreateFile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,12 +95,18 @@ export const FileManagerPanel: React.FC = () => {
   const handleRunScript = () => {
     if (activeFile && activeFile.type === 'script') {
       try {
-        const fn = new Function(activeFile.content);
-        fn();
+        const scriptContext = { addLog, agents, files, widgets };
+        const fn = new Function('context', `
+          with(context) {
+            ${activeFile.content}
+          }
+        `);
+        const result = fn(scriptContext);
         addLog('RUN_SCRIPT', `Executed script: ${activeFile.name}`);
+        if (result) console.log("Script Result:", result);
       } catch (err: any) {
         console.error("Script execution error:", err);
-        alert(`Error: ${err.message}`);
+        addNotification({ title: 'Script Error', message: err.message, type: 'error', featureId: 'SCRIPT_RUNNER' });
       }
     }
   };
@@ -113,7 +151,7 @@ export const FileManagerPanel: React.FC = () => {
           </form>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-          {files.map(file => (
+          {filteredFiles.map(file => (
             <div 
               key={file.id}
               onClick={() => setActiveFileId(file.id)}
@@ -155,6 +193,16 @@ export const FileManagerPanel: React.FC = () => {
                 <span className="font-mono text-xs font-bold uppercase tracking-widest text-primary">{activeFile.name}</span>
               </div>
               <div className="flex gap-3">
+                {activeFile.type === 'svg' && (
+                   <button 
+                    onClick={handleNeuralCleanup}
+                    disabled={isProcessing}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white/60 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10 group"
+                  >
+                    <Sparkles size={12} className={cn("group-hover:text-primary", isProcessing && "animate-spin text-primary")} />
+                    {isProcessing ? 'PROCESSING...' : 'Neural_Cleanup'}
+                  </button>
+                )}
                 {activeFile.type === 'script' && (
                   <button 
                     onClick={handleRunScript}

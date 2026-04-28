@@ -9,21 +9,14 @@ interface LinkItem {
 }
 
 export const LinksPanel: React.FC = () => {
-  const { addLog } = useDashboard();
-  const [links, setLinks] = useState<LinkItem[]>(() => {
-    const saved = localStorage.getItem('omnidash_links');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', title: 'GitHub', url: 'https://github.com' },
-      { id: '2', title: 'Vite Docs', url: 'https://vitejs.dev' }
-    ];
-  });
+  const { links, addLink, deleteLink, addLog, searchQuery } = useDashboard();
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
 
-  const saveLinks = (newLinks: LinkItem[]) => {
-    setLinks(newLinks);
-    localStorage.setItem('omnidash_links', JSON.stringify(newLinks));
-  };
+  const filteredLinks = links.filter(link => {
+    const query = (searchQuery || '').toLowerCase();
+    return link.title.toLowerCase().includes(query) || link.url.toLowerCase().includes(query);
+  });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,16 +27,13 @@ export const LinksPanel: React.FC = () => {
       formattedUrl = 'https://' + formattedUrl;
     }
 
-    const newLink = { id: Math.random().toString(36).substr(2, 9), title: newTitle, url: formattedUrl };
-    saveLinks([...links, newLink]);
+    addLink({ title: newTitle, url: formattedUrl });
     setNewTitle('');
     setNewUrl('');
-    addLog('ADD_LINK', `Added web link: ${newTitle}`);
   };
 
   const handleDelete = (id: string) => {
-    saveLinks(links.filter(l => l.id !== id));
-    addLog('DELETE_LINK', `Deleted web link`);
+    deleteLink(id);
   };
 
   return (
@@ -94,7 +84,7 @@ export const LinksPanel: React.FC = () => {
       </form>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {links.map(link => (
+        {filteredLinks.map(link => (
           <div key={link.id} className="glass-card p-6 flex items-center justify-between group hover:neon-glow hover:border-primary/30 transition-all duration-500 border-white/5 bg-white/[0.02]">
             <div className="flex items-center gap-4 overflow-hidden">
               <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">

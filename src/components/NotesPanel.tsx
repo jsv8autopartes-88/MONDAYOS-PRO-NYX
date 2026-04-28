@@ -2,18 +2,18 @@ import React from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import ReactMarkdown from 'react-markdown';
 import { Edit3, Eye, Save } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export const NotesPanel: React.FC = () => {
   const { notes, updateNotes, addLog } = useDashboard();
-  const [isEditing, setIsEditing] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<'edit' | 'preview' | 'split'>('preview');
 
   const handleSave = () => {
-    setIsEditing(false);
     addLog('UPDATE_NOTES', 'Updated quick notes');
   };
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-5xl mx-auto gap-6">
+    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/20 rounded-lg">
@@ -24,24 +24,45 @@ export const NotesPanel: React.FC = () => {
             <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Persistent Memory Storage</p>
           </div>
         </div>
-        <button 
-          onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-white/5"
-        >
-          {isEditing ? <><Save size={14} className="text-primary" /> Save</> : <><Edit3 size={14} className="text-primary" /> Edit</>}
-        </button>
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+          <button 
+            onClick={() => setViewMode('edit')}
+            className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all", viewMode === 'edit' ? "bg-primary text-black" : "text-white/40 hover:text-white")}
+          >
+            Edit
+          </button>
+          <button 
+            onClick={() => setViewMode('split')}
+            className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all", viewMode === 'split' ? "bg-primary text-black" : "text-white/40 hover:text-white")}
+          >
+            Split
+          </button>
+          <button 
+            onClick={() => setViewMode('preview')}
+            className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all", viewMode === 'preview' ? "bg-primary text-black" : "text-white/40 hover:text-white")}
+          >
+            Read
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 glass-card overflow-hidden flex flex-col border-white/5">
-        {isEditing ? (
+      <div className="flex-1 glass-card overflow-hidden flex border-white/5 bg-black/20">
+        {(viewMode === 'edit' || viewMode === 'split') && (
           <textarea
             value={notes}
             onChange={(e) => updateNotes(e.target.value)}
-            className="flex-1 w-full bg-black/40 p-8 outline-none font-mono text-sm leading-relaxed text-white/80 resize-none custom-scrollbar"
+            className={cn(
+              "h-full w-full bg-black/40 p-8 outline-none font-mono text-sm leading-relaxed text-white/80 resize-none custom-scrollbar border-r border-white/5",
+              viewMode === 'split' ? "w-1/2" : "w-full"
+            )}
             placeholder="Write your notes here (Markdown supported)..."
           />
-        ) : (
-          <div className="flex-1 p-8 overflow-y-auto prose prose-invert prose-sm max-w-none custom-scrollbar bg-black/20">
+        )}
+        {(viewMode === 'preview' || viewMode === 'split') && (
+          <div className={cn(
+            "h-full p-8 overflow-y-auto prose prose-invert prose-sm max-w-none custom-scrollbar",
+            viewMode === 'split' ? "w-1/2" : "w-full"
+          )}>
             {notes ? (
               <ReactMarkdown>{notes}</ReactMarkdown>
             ) : (
@@ -52,14 +73,14 @@ export const NotesPanel: React.FC = () => {
             )}
           </div>
         )}
-        <div className="p-4 border-t border-white/5 bg-white/[0.02] flex justify-between items-center px-8">
-          <div className="text-[9px] text-white/30 uppercase tracking-[0.2em]">
-            Sector: MEM_CORE_01 // Size: {notes.length} bytes
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-[9px] font-bold text-primary uppercase tracking-widest">Sync Active</span>
-          </div>
+      </div>
+      <div className="p-4 border-t border-white/5 bg-white/[0.02] flex justify-between items-center px-8">
+        <div className="text-[9px] text-white/30 uppercase tracking-[0.2em]">
+          Sector: MEM_CORE_01 // Size: {notes.length} bytes
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-[9px] font-bold text-primary uppercase tracking-widest">Sync Active</span>
         </div>
       </div>
     </div>

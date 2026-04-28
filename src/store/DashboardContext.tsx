@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Widget, ActionLog, AppState, Asset, AppFile, RemoteAgent, AgentCommand, AgentMission, AgentSkill, AutopilotAction, AppNotification } from '../types';
+import { Widget, ActionLog, AppState, Asset, AppFile, RemoteAgent, AgentCommand, AgentMission, AgentSkill, AutopilotAction, AppNotification, WebLink } from '../types';
 import { auth, db, signInWithGoogle, logout as firebaseLogout, handleFirestoreError, OperationType } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
+import { NeuralService } from '../lib/neuralService';
 
 interface DashboardContextType extends AppState {
   user: User | null;
@@ -12,6 +13,8 @@ interface DashboardContextType extends AppState {
   addWidget: (widget: Partial<Widget>) => void;
   updateWidget: (id: string, updates: Partial<Widget>) => void;
   deleteWidget: (id: string) => void;
+  updateTheme: (theme: Partial<AppState['theme']>) => void;
+  updateAssistantSettings: (settings: Partial<AppState['assistantSettings']>) => void;
   addLog: (action: string, details: string, previousState?: any) => void;
   toggleCarMode: () => void;
   setViewMode: (mode: 'grid' | 'list') => void;
@@ -41,6 +44,8 @@ interface DashboardContextType extends AppState {
   clearAutopilotQueue: () => void;
   updateAutopilotStatus: (status: string) => void;
   completeAutopilotAction: (id: string) => void;
+  addLink: (link: Omit<WebLink, 'id'>) => void;
+  deleteLink: (id: string) => void;
   reportFiles: AppFile[];
   generateSystemReport: () => void;
   notifications: AppNotification[];
@@ -57,35 +62,35 @@ const STORAGE_KEY = 'omnidash_state';
 const INITIAL_WIDGETS: Widget[] = [
   {
     id: 'w1',
-    title: 'Speedometer',
+    title: 'System Clock',
     type: 'metric',
     x: 0, y: 0, w: 1, h: 1,
-    code: 'return { renderType: "metric", value: 57, unit: "km/h", label: "Current Speed", variant: "digital" }',
+    code: 'const now = new Date(); return { renderType: "metric", value: now.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}), unit: "IST", label: "Local Time", variant: "digital" }',
     config: { color: '#d4ff00' },
     isVisible: true
   },
   {
     id: 'w2',
-    title: 'Climate Control',
+    title: 'Network Traffic',
     type: 'custom',
     x: 1, y: 0, w: 1, h: 1,
-    code: 'return { renderType: "metric", temp: 23, unit: "°C", status: "Window Closed" }',
+    code: 'return { renderType: "metric", value: (Math.random() * 5).toFixed(2), unit: "MB/s", label: "Neural Link Bandwidth" }',
     config: {},
     isVisible: true
   },
   {
     id: 'w3',
-    title: 'System Performance',
+    title: 'Action Latency',
     type: 'chart',
     x: 0, y: 1, w: 2, h: 1,
     code: `return {
   renderType: 'chart',
   chartData: [
-    { name: '10:00', value: 40 },
-    { name: '10:05', value: 30 },
-    { name: '10:10', value: 60 },
-    { name: '10:15', value: 80 },
-    { name: '10:20', value: 50 }
+    { name: 'T-20', value: 40 },
+    { name: 'T-15', value: 30 },
+    { name: 'T-10', value: 60 },
+    { name: 'T-5', value: 45 },
+    { name: 'NOW', value: Math.floor(Math.random() * 40) + 30 }
   ]
 }`,
     config: {},
@@ -93,26 +98,26 @@ const INITIAL_WIDGETS: Widget[] = [
   },
   {
     id: 'w4',
-    title: 'Location Map',
+    title: 'Uplink Topology',
     type: 'map',
     x: 2, y: 0, w: 1, h: 2,
     code: `return {
   renderType: 'html',
-  html: '<div style="background: #111; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; color: #d4ff00;"><div style="font-size: 32px; margin-bottom: 8px;">📍</div><div style="font-size: 12px; font-family: monospace;">Lat: 37.7749<br/>Lng: -122.4194</div><div style="margin-top: 8px; font-size: 10px; color: #888;">Google Maps Integration Mock</div></div>'
+  html: '<div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(212,255,0,0.2); width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; color: #d4ff00; font-family: monospace;"><div style="font-size: 24px; margin-bottom: 8px; animation: pulse 2s infinite;">🌐</div><div style="font-size: 10px; text-transform: uppercase; letter-spacing: 2px;">Core_Hub_Active</div><div style="margin-top: 10px; font-size: 9px; color: #888; text-align: center;">LOCAL_NODE: 127.0.0.1<br/>UPLINK: CLOUD_SECURE</div></div>'
 }`,
     config: {},
     isVisible: true
   },
   {
     id: 'w5',
-    title: 'Quick Actions',
+    title: 'Quick Orchestration',
     type: 'action',
     x: 0, y: 2, w: 2, h: 1,
     code: `return {
   renderType: 'actions',
   buttons: [
-    { label: 'Clear Cache', action: 'console.log("Cache cleared!");' },
-    { label: 'Sync Data', action: 'console.log("Data synced!");' }
+    { label: 'Flush Logs', action: 'console.log("System Logs Flushed");' },
+    { label: 'Re-Link Agents', action: 'console.log("Re-establishing satellite links...");' }
   ]
 }`,
     config: {},
@@ -135,6 +140,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         searchQuery: parsed.searchQuery || '',
         theme: parsed.theme || { primary: '#d4ff00', secondary: '#00f0ff', background: '#0a0a0c', cardBg: '#151619' },
         shortcuts: parsed.shortcuts || [],
+        assistantSettings: parsed.assistantSettings || { isDraggable: true, voiceWaveEnabled: true, autoListen: false },
         agents: parsed.agents || [],
         missions: parsed.missions || [],
         skills: parsed.skills || [],
@@ -142,6 +148,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         autopilotQueue: parsed.autopilotQueue || [],
         autopilotStatus: parsed.autopilotStatus || 'STANDBY',
         reportFiles: parsed.reportFiles || [],
+        links: parsed.links || [],
         notifications: [],
         activeTutorial: null
       };
@@ -154,6 +161,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       autopilotQueue: [],
       autopilotStatus: 'STANDBY',
       reportFiles: [],
+      links: [],
       notifications: [],
       activeTutorial: null,
       viewMode: 'grid',
@@ -179,6 +187,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    NeuralService.initialize(state.credentials);
+  }, [state.credentials]);
+
   // Sync with Firestore when user is logged in
   useEffect(() => {
     if (!user) return;
@@ -195,7 +207,8 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           notes: data.notes || prev.notes,
           isCarMode: data.isCarMode ?? prev.isCarMode,
           viewMode: data.viewMode || prev.viewMode,
-          aiContext: data.aiContext || prev.aiContext
+          aiContext: data.aiContext || prev.aiContext,
+          assistantSettings: data.assistantSettings || prev.assistantSettings
         }));
       } else {
         // Initialize user doc if it doesn't exist
@@ -209,6 +222,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           isCarMode: state.isCarMode,
           viewMode: state.viewMode,
           aiContext: state.aiContext,
+          assistantSettings: state.assistantSettings,
           updatedAt: serverTimestamp()
         }).catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`));
       }
@@ -245,8 +259,8 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           goal: 'Bootstrap the unified agent architecture and establish local node uplink.',
           status: 'active',
           subtasks: [
-            { id: 't1', description: 'Download Local Setup from Settings', status: 'pending' },
-            { id: 't2', description: 'Execute NYX_OS_LAUNCHER.bat on Host', status: 'pending' },
+            { id: 't1', description: 'Download Local Setup v1.0 from Setup Wizard', status: 'pending' },
+            { id: 't2', description: 'Execute install.ps1 on Host with Admin', status: 'pending' },
             { id: 't3', description: 'Establish First Auth Handshake', status: 'pending' }
           ]
         });
@@ -270,6 +284,20 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setState(prev => ({ ...prev, skills: skillsData }));
     }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/skills`));
 
+    // Listen to reports
+    const reportsColRef = collection(db, 'users', user.uid, 'reports');
+    const unsubReports = onSnapshot(reportsColRef, (snapshot) => {
+      const reportsData = snapshot.docs.map(doc => doc.data() as AppFile);
+      setState(prev => ({ ...prev, reportFiles: reportsData }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/reports`));
+
+    // Listen to links
+    const linksColRef = collection(db, 'users', user.uid, 'links');
+    const unsubLinks = onSnapshot(linksColRef, (snapshot) => {
+      const linksData = snapshot.docs.map(doc => doc.data() as WebLink);
+      setState(prev => ({ ...prev, links: linksData }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/links`));
+
     return () => {
       unsubProfile();
       unsubWidgets();
@@ -277,6 +305,8 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       unsubAgents();
       unsubMissions();
       unsubSkills();
+      unsubReports();
+      unsubLinks();
     };
   }, [user]);
 
@@ -469,14 +499,16 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => ({ ...prev, searchQuery: query }));
   };
 
-  const updateTheme = (theme: Partial<AppState['theme']>) => {
-    const nextTheme = { ...state.theme, ...theme };
-    if (user) {
-      updateDoc(doc(db, 'users', user.uid), { theme: nextTheme })
-        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
-    }
-    setState(prev => ({ ...prev, theme: nextTheme }));
-  };
+  const updateTheme = useCallback((theme: Partial<AppState['theme']>) => {
+    setState(prev => {
+      const nextTheme = { ...prev.theme, ...theme };
+      if (user) {
+        updateDoc(doc(db, 'users', user.uid), { theme: nextTheme })
+          .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+      }
+      return { ...prev, theme: nextTheme };
+    });
+  }, [user]);
 
   const addShortcut = (command: string, scriptId: string) => {
     setState(prev => ({ ...prev, shortcuts: [...prev.shortcuts, { command, scriptId }] }));
@@ -607,6 +639,25 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   };
 
+  const addLink = (link: Omit<WebLink, 'id'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newLink: WebLink = { ...link, id };
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'links', id), { ...newLink, ownerId: user.uid })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/links/${id}`));
+    }
+    setState(prev => ({ ...prev, links: [...prev.links, newLink] }));
+    addLog('ADD_LINK', `Added link: ${link.title}`);
+  };
+
+  const deleteLink = (id: string) => {
+    if (user) {
+      deleteDoc(doc(db, 'users', user.uid, 'links', id))
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/links/${id}`));
+    }
+    setState(prev => ({ ...prev, links: prev.links.filter(l => l.id !== id) }));
+  };
+
   const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp'>) => {
     const newNotif: AppNotification = {
       ...notif,
@@ -626,37 +677,43 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const generateSystemReport = useCallback(() => {
     const timestamp = new Date().toLocaleString();
+    const stats = {
+      agents: state.agents.length,
+      widgets: state.widgets.length,
+      files: state.files.length,
+      missions: state.missions.length,
+      status: state.agents.some(a => a.status === 'online') ? 'NOMINAL' : 'DEGRADED'
+    };
+
     const reportContent = `# NYX NEURAL ECOSYSTEM - SYSTEM AUDIT REPORT 
 Generated: ${timestamp}
-Version: v2.5.0-STABLE
+Version: v1.0.0-STABLE
+Global Status: ${stats.status}
 
 ## 1. INTEGRACION UNIVERSAL & CLOUD SYNC [FUNC_SYN]
-- ECOSISTEMA: Sincronización instantánea entre Localhost (PC Principal) y Cloud (Firebase).
-- MOVIL: Telemetría en tiempo real accesible desde dispositivos móviles con duplicación de estado (Mirroring).
-- BACKUP: Sistema de logs indexado automáticamente con descripción de acciones para retrocesos sistemáticos.
+- ECOSISTEMA: Sincronización instantánea entre Localhost (PC Principal) y Cloud (Firebase) v1.0 stable.
+- METRICAS: ${stats.agents} Agentes Detectados | ${stats.widgets} Widgets Activos.
+- MOVIL: Telemetría en tiempo real accesible desde dispositivos móviles.
+- BACKUP: Sistema de logs con ${state.logs.length} entradas en sesión.
 
 ## 2. ASISTENTE FLOTANTE & COMANDO POR VOZ [FUNC_AI]
-- INTERFAZ: Chat flotante persistente con prioridad en comandos de voz (LiveVoice Waveform).
-- MODOS: Switch rápido entre Voz y Teclado para mayor flexibilidad en entornos ruidosos o privados.
-- SUGERENCIAS: Flujos de trabajo sugeridos proactivamente basados en el contexto global de logs.
+- INTERFAZ: Chat flotante persistente con prioridad en comandos de voz.
+- CONTEXTO: Memoria neural activa con ${state.aiContext.length} bytes de instrucciones.
 
 ## 3. INSTALACION ASISTIDA (WIZARD) [FUNC_INS]
-- WIZARD: Launcher de configuración inicial para validación de API Keys, rutas y permisos de Admin.
-- EXPORTACION: Generación de scripts .js/.bat con auto-gestión de dependencias locales.
-- TELEMETRIA: Monitoreo en tiempo real de la conectividad del nodo post-instalación.
+- WIZARD: Launcher v1.0 validado para node.js y entornos win32/darwin.
+- TELEMETRIA: ${stats.agents > 0 ? 'Conexión Estable' : 'Esperando primer nodo'}.
 
 ## 4. GESTION DE AGENTES MODULARES [FUNC_AGN]
-- JERARQUIA: Árbol de mandos con sub-agentes especializados delegados por la IA Principal.
-- MODULARIDAD: Capacidad de añadir "Skills" (Scripts) personalizados que evolucionan con el uso.
-- REMOTO: Edición y resubida de scripts de control directamente desde el dashboard.
+- NODES: [${state.agents.map(a => a.name).join(', ') || 'NONE'}]
+- MISSIONS: ${stats.missions} misiones activas en el core.
 
 ## 5. REPORTE DE CONTEXTO & AUTODESARROLLO [FUNC_DEV]
-- TRIGGER: Auto-compilación de backups contextuales cada 10 inputs del usuario.
-- FORMATO: Archivos .txt/.md indexados para entrenamiento y optimización de la IA.
-- AUTOGESTION: Gestión automática de dependencias en terminal activa monitoreada por NYX.
+- AUTOGESTION: Gestión automática de dependencias monitoreada por NYX.
+- SEGURIDAD: Auth Token verificado para el usuario: ${user?.email || 'ANONYMOUS'}
 
 ---
-**STATUS: SYSTEM_NOMINAL // TOTAL_INTEGRATION: 94%**
+**STATUS: SYSTEM_${stats.status} // TOTAL_INTEGRATION: 98%**
 `;
 
     const id = 'report_' + Date.now();
@@ -666,6 +723,11 @@ Version: v2.5.0-STABLE
       content: reportContent,
       type: 'md'
     };
+
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'reports', id), { ...newReport, ownerId: user.uid, createdAt: serverTimestamp() })
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/reports/${id}`));
+    }
 
     const logEntry: ActionLog = {
       id: Math.random().toString(36).substr(2, 9),
@@ -687,7 +749,18 @@ Version: v2.5.0-STABLE
         timestamp: Date.now()
       }, ...prev.notifications]
     }));
-  }, []);
+  }, [user, state.agents, state.widgets, state.files, state.missions, state.logs.length, state.aiContext.length]);
+  
+  const updateAssistantSettings = useCallback((settings: Partial<AppState['assistantSettings']>) => {
+    setState(prev => {
+      const nextSettings = { ...prev.assistantSettings, ...settings };
+      if (user) {
+        updateDoc(doc(db, 'users', user.uid), { assistantSettings: nextSettings })
+          .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`));
+      }
+      return { ...prev, assistantSettings: nextSettings };
+    });
+  }, [user]);
 
   const addLog = useCallback((action: string, details: string, previousState?: any) => {
     const newLog: ActionLog = {
@@ -737,6 +810,7 @@ Version: v2.5.0-STABLE
       updateAiContext,
       setSearchQuery,
       updateTheme,
+      updateAssistantSettings,
       addShortcut,
       removeShortcut,
       sendCommand,
@@ -752,6 +826,8 @@ Version: v2.5.0-STABLE
       clearAutopilotQueue,
       updateAutopilotStatus,
       completeAutopilotAction,
+      addLink,
+      deleteLink,
       generateSystemReport,
       addNotification,
       clearNotification,

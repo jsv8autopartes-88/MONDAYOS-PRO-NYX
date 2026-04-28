@@ -30,7 +30,8 @@ import {
   Play,
   FileText,
   ClipboardCheck,
-  DownloadCloud
+  DownloadCloud,
+  HardDrive,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDashboard } from '../store/DashboardContext';
@@ -66,7 +67,8 @@ export const AgentControllerPanel: React.FC = () => {
     addAutopilotTask,
     clearAutopilotQueue,
     autopilotQueue,
-    autopilotStatus
+    autopilotStatus,
+    searchQuery
   } = useDashboard();
   
   const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup' | 'autopilot' | 'reports'>('nodes');
@@ -82,7 +84,14 @@ export const AgentControllerPanel: React.FC = () => {
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ description: '', code: '' });
 
-  const selectedAgent = agents.find(a => a.id === selectedAgentId);
+  const filteredAgents = agents.filter(a => {
+    const query = (searchQuery || '').toLowerCase();
+    return a.name.toLowerCase().includes(query) || 
+           a.id.toLowerCase().includes(query) ||
+           (a.platform || '').toLowerCase().includes(query);
+  });
+
+  const selectedAgent = filteredAgents.find(a => a.id === selectedAgentId);
 
   const evolveSkill = async (skillId: string) => {
     const skill = skills.find(s => s.id === skillId);
@@ -345,13 +354,13 @@ export const AgentControllerPanel: React.FC = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
-                  {agents.length === 0 ? (
+                  {filteredAgents.length === 0 ? (
                     <div className="h-40 flex flex-col items-center justify-center text-center opacity-30">
                       <Bot size={32} className="mb-2" />
-                      <p className="text-xs uppercase">No Nodes Found</p>
+                      <p className="text-xs uppercase">{searchQuery ? 'No Matches Found' : 'No Nodes Found'}</p>
                     </div>
                   ) : (
-                    agents.map((agent) => (
+                    filteredAgents.map((agent) => (
                       <button
                         key={agent.id}
                         onClick={() => setSelectedAgentId(agent.id)}
@@ -397,46 +406,129 @@ export const AgentControllerPanel: React.FC = () => {
                     </div>
 
                     <div className="flex-1 flex flex-col p-6 gap-6 overflow-hidden">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-primary/30 transition-all">
                           <div className="flex items-center gap-2 text-primary opacity-60">
                             <Monitor size={14} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">OS_PLATFORM</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">OS_HOST</span>
                           </div>
-                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.os || selectedAgent.platform || 'Nyx_OS v2.1'}</span>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors truncate">
+                            {selectedAgent.systemInfo?.hostname || 'Unknown'} ({selectedAgent.platform})
+                          </span>
                         </div>
                         <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-neon-blue/30 transition-all">
                           <div className="flex items-center gap-2 text-neon-blue opacity-60">
                             <Cpu size={14} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">CPU_ARCHITECTURE</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">CPU_SPECS</span>
                           </div>
-                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.cpu || 'Dynamic Neural Processor'}</span>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors truncate">
+                            {selectedAgent.systemInfo?.cpuModel || 'Generic Core'}
+                          </span>
                         </div>
-                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-neon-purple/30 transition-all">
-                          <div className="flex items-center gap-2 text-neon-purple opacity-60">
-                            <Activity size={14} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">MEMORY_RESOURCES</span>
+                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-red-500/30 transition-all">
+                          <div className="flex items-center gap-2 text-red-400 opacity-60">
+                            <HardDrive size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">RAM_SYNC</span>
                           </div>
-                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">{selectedAgent.systemInfo?.ram || 'Optimized Allocation 16GB'}</span>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">
+                            {selectedAgent.systemInfo?.mem || '0GB'}
+                          </span>
+                        </div>
+                        <div className="glass-card p-4 bg-white/5 border border-white/10 flex flex-col gap-2 group hover:border-yellow-500/30 transition-all">
+                          <div className="flex items-center gap-2 text-yellow-400 opacity-60">
+                            <Activity size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">LOAD_AVG</span>
+                          </div>
+                          <span className="text-xs font-mono text-white/80 group-hover:text-white transition-colors">
+                            {selectedAgent.systemInfo?.cpuUsage ? `${(selectedAgent.systemInfo.cpuUsage * 100).toFixed(1)}%` : '0.0%'}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex-1 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar space-y-4 bg-black/40">
-                        <div className="text-white/20 text-[9px] mb-4 border-b border-white/5 pb-2 uppercase tracking-widest">
-                          // NODE_LINK_STABLE // STREAM_ACTIVE
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => sendCommand(selectedAgent.id, 'reboot')}
+                          className="flex-1 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={14} /> Power_Recycle
+                        </button>
+                        <button 
+                          onClick={() => sendCommand(selectedAgent.id, 'cls')}
+                          className="flex-1 py-3 bg-neon-blue/10 border border-neon-blue/20 text-neon-blue rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neon-blue/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={14} /> Wipe_Cache
+                        </button>
+                        <button 
+                          onClick={() => sendCommand(selectedAgent.id, 'systeminfo')}
+                          className="flex-1 py-3 bg-primary/10 border border-primary/20 text-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Monitor size={14} /> Diagnose
+                        </button>
+                      </div>
+
+                      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
+                        <div className="flex flex-col gap-4 overflow-hidden">
+                          <div className="flex-1 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/5">
+                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                              <h4 className="text-[10px] text-primary/60 font-black uppercase">Active Processes</h4>
+                              <span className="text-[8px] text-white/20 uppercase tracking-widest italic leading-none">Top 15 Threads</span>
+                            </div>
+                            <table className="w-full text-left">
+                              <thead className="text-[8px] text-white/20 uppercase tracking-widest">
+                                <tr>
+                                  <th className="pb-2">PID</th>
+                                  <th className="pb-2">NAME</th>
+                                  <th className="pb-2 text-right">CPU</th>
+                                  <th className="pb-2 text-right">MEM</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(selectedAgent.processes || []).map((p, idx) => (
+                                  <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                                    <td className="py-1.5 text-white/40">{p.pid}</td>
+                                    <td className="py-1.5 text-white/80 group-hover:text-primary transition-colors truncate max-w-[100px]">{p.name}</td>
+                                    <td className="py-1.5 text-right text-primary">{p.cpu || 0}%</td>
+                                    <td className="py-1.5 text-right text-white/60">{p.mem ? p.mem.toFixed(1) : 0}MB</td>
+                                  </tr>
+                                ))}
+                                {(!selectedAgent.processes || selectedAgent.processes.length === 0) && (
+                                  <tr>
+                                    <td colSpan={4} className="py-8 text-center text-white/20 uppercase text-[9px] italic">Waiting for telemetry...</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                        <AnimatePresence initial={false}>
-                          {[...commands].reverse().map((cmd) => (
-                            <motion.div key={cmd.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1 border-l border-white/5 pl-3 py-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-primary">Node:{selectedAgentId.substring(0,4)}@nyx:{'>'} {cmd.cmd}</span>
-                                <span className="text-white/20 text-[8px] uppercase">{new Date(cmd.createdAt).toLocaleTimeString()}</span>
-                              </div>
-                              {cmd.status === 'executing' && <div className="text-neon-blue animate-pulse pl-4 uppercase text-[9px]">Executing...</div>}
-                              {cmd.result && <pre className="text-white/40 pl-4 whitespace-pre-wrap leading-tight">{cmd.result}</pre>}
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
+
+                        <div className="flex flex-col gap-4 overflow-hidden">
+                          <div className="flex-1 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar space-y-4 bg-black/40 border border-white/5">
+                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                              <h4 className="text-[10px] text-neon-blue/60 font-black uppercase">Command Stream</h4>
+                              <span className="text-[8px] text-white/20 uppercase tracking-widest italic leading-none">Last 15 Operations</span>
+                            </div>
+                            <AnimatePresence initial={false}>
+                              {[...commands].reverse().map((cmd) => (
+                                <motion.div key={cmd.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1 mb-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className={cn(
+                                      "text-[10px] font-bold",
+                                      cmd.status === 'completed' ? "text-primary" : 
+                                      cmd.status === 'failed' ? "text-red-400" : "text-neon-blue"
+                                    )}>Node:{selectedAgentId.substring(0,4)}@nyx:{'>'} {cmd.cmd}</span>
+                                    <span className="text-white/20 text-[8px] uppercase">{new Date(cmd.createdAt).toLocaleTimeString()}</span>
+                                  </div>
+                                  {cmd.status === 'executing' && <div className="text-neon-blue animate-pulse pl-4 uppercase text-[8px]">Executing_Sequence...</div>}
+                                  {cmd.result && <pre className="text-white/40 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-white/10 ml-1">{cmd.result}</pre>}
+                                  {cmd.error && <pre className="text-red-500/60 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-red-500/20 ml-1 italic">{cmd.error}</pre>}
+                                </motion.div>
+                              ))}
+                              {commands.length === 0 && (
+                                <div className="h-full flex items-center justify-center text-white/20 uppercase text-[9px] italic">No activity logs recorded</div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex gap-2">
@@ -516,7 +608,10 @@ export const AgentControllerPanel: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {missions.map((mission) => {
+                {missions.filter(m => {
+                  const query = (searchQuery || '').toLowerCase();
+                  return m.title.toLowerCase().includes(query) || m.goal.toLowerCase().includes(query);
+                }).map((mission) => {
                   const completed = mission.subtasks.filter(t => t.status === 'done').length;
                   const total = mission.subtasks.length;
                   const progress = total > 0 ? (completed / total) * 100 : 0;
@@ -698,7 +793,10 @@ export const AgentControllerPanel: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {skills.map((skill) => {
+                {skills.filter(s => {
+                  const query = (searchQuery || '').toLowerCase();
+                  return s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query);
+                }).map((skill) => {
                   const isEditing = editingSkillId === skill.id;
                   return (
                     <div key={skill.id} className={cn(
@@ -1043,7 +1141,7 @@ export const AgentControllerPanel: React.FC = () => {
                   <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Engine Status: {autopilotStatus}</span>
                 </div>
                 <div className="text-[9px] font-mono text-white/20">
-                  BUILD_VER: 2.1.0-RC // CONTROL_INTERFACE: NATIVE
+                  BUILD_VER: 1.0.0-STABLE // CONTROL_INTERFACE: NATIVE
                 </div>
               </div>
             </motion.div>

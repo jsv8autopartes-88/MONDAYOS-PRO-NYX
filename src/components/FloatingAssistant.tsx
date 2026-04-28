@@ -1,125 +1,136 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Keyboard, MessageSquare, X, Send, Sparkles, Activity, Bell } from 'lucide-react';
+import { Mic, Keyboard, MessageSquare, X, Send, Sparkles, Activity, Bell, GripVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
+import Draggable from 'react-draggable';
+import { GoogleGenAI } from '@google/genai';
+import { AIWave } from './AIWave';
+import { NeuralService } from '../lib/neuralService';
 
 export const FloatingAssistant: React.FC = () => {
-  const { logs, autopilotStatus, addLog, addNotification } = useDashboard();
+  const { logs, autopilotStatus, addLog, addNotification, credentials, aiContext, agents, assistantSettings, updateTheme } = useDashboard();
   const [isOpen, setIsOpen] = useState(false);
   const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user', content: string }[]>([
+    { role: 'ai', content: 'Neural Assistant Online. Systems nominal.' }
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const nodeRef = useRef(null);
 
-  const toggleListening = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsListening(!isListening);
-    if (!isListening) {
-      addNotification({
-        title: 'Voice Priority Active',
-        message: 'Nyx is listening to biometric triggers...',
-        featureId: 'VOICE_TRIGGER',
-        type: 'info'
-      });
+  const isDraggable = assistantSettings?.isDraggable ?? true;
+  const isVoiceWaveEnabled = assistantSettings?.voiceWaveEnabled ?? true;
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setIsLoading(true);
+
+    try {
+      const agentsInfo = agents.map(a => `${a.name}(${a.status})`).join(', ');
+      const systemContext = `${aiContext}\n\nYou are answering from a small floating assistant window. Be extremely concise and tech-focused.\n\nContext:\n- Agents: ${agentsInfo}\n- Recent Actions: ${logs.slice(-3).map(l => l.action).join(', ')}`;
+      const prompt = `${systemContext}\n\nUSER: ${userMsg}`;
+
+      const result = await NeuralService.generate(prompt);
+      
+      setMessages(prev => [...prev, { role: 'ai', content: result.content }]);
+      addLog('ASSISTANT_AI_REPLY', `Nyx replied to: ${userMsg.substring(0, 15)}...`);
+    } catch (error) {
+      console.error(error);
+      setMessages(prev => [...prev, { role: 'ai', content: 'Neural link error.' }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    // Initial welcome notification
-    const timer = setTimeout(() => {
-      addNotification({
-        title: 'Neural Assistant Online',
-        message: 'Nyx is ready to orchestrate your local environment. Click for tutorial.',
-        featureId: 'AI_ASSISTANT',
-        type: 'info'
-      });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Auto-scroll simulation for chat
-  const [recentLogs, setRecentLogs] = useState(logs.slice(-5));
-
-  useEffect(() => {
-    setRecentLogs(logs.slice(-5));
-  }, [logs]);
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-    addLog('USER_COMMAND', input);
-    setInput('');
-    // Expansion logic could go here to trigger autopilot or missions
+  const startVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window)) return;
+    const SpeechRecognition = (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (e: any) => {
+      const text = e.results[0][0].transcript;
+      setInput(text);
+      setIsListening(false);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-[10001] flex flex-col items-start gap-4">
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="w-80 h-[450px] glass-card flex flex-col border-primary/20 shadow-2xl overflow-hidden mb-2"
-          >
-            {/* Chat Header */}
-            <div className="p-4 border-b border-white/5 flex flex-col gap-3 bg-primary/10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                      <Sparkles size={16} />
+    <Draggable nodeRef={nodeRef} disabled={!isDraggable} handle=".drag-handle">
+      <div ref={nodeRef} className="fixed bottom-6 left-6 z-[10001] flex flex-col items-start gap-4">
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-80 h-[450px] glass-card flex flex-col border-primary/20 shadow-2xl overflow-hidden mb-2"
+            >
+              {/* Chat Header */}
+              <div className={cn(
+                "p-4 border-b border-white/5 flex flex-col gap-3 transition-colors",
+                isListening ? "bg-primary/20" : "bg-primary/10"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="drag-handle cursor-grab active:cursor-grabbing p-1 hover:bg-white/5 rounded">
+                      <GripVertical size={14} className="text-white/20" />
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-black" />
+                    <div className="relative">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                        <Sparkles size={16} />
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-black" />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase text-white">Nyx Assistant</h4>
+                      <p className="text-[8px] text-primary uppercase font-mono animate-pulse">{isLoading ? 'Thinking...' : autopilotStatus}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-[11px] font-black uppercase text-white">Nyx Assistant</h4>
-                    <p className="text-[8px] text-primary uppercase font-mono animate-pulse">{autopilotStatus}</p>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setIsKeyboardMode(!isKeyboardMode)}
+                      className={cn(
+                        "p-1.5 rounded-lg transition-all",
+                        isKeyboardMode ? "bg-primary text-black" : "text-white/20 hover:text-white"
+                      )}
+                    >
+                      <Keyboard size={14} />
+                    </button>
+                    <button onClick={() => setIsOpen(false)} className="text-white/20 hover:text-white"><X size={16} /></button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setIsKeyboardMode(!isKeyboardMode)}
-                    className={cn(
-                      "p-1.5 rounded-lg transition-all",
-                      isKeyboardMode ? "bg-primary text-black" : "text-white/20 hover:text-white"
-                    )}
-                  >
-                    <Keyboard size={14} />
-                  </button>
-                  <button onClick={() => setIsOpen(false)} className="text-white/20 hover:text-white"><X size={16} /></button>
-                </div>
-              </div>
 
-              {/* LiveVoice Waveform (Inner) */}
-              <div className="flex gap-1 items-end h-8 overflow-hidden bg-black/20 rounded-lg p-2 justify-center">
-                {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.3, 0.7, 0.5, 0.9].map((h, i) => (
-                  <motion.div 
-                    key={i}
-                    animate={{ height: !isKeyboardMode && isListening ? [h*24, (1-h)*24, h*24] : 4 }}
-                    transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.05 }}
-                    className="flex-1 bg-primary rounded-full min-w-[2px]"
-                  />
-                ))}
+                {/* LiveVoice Waveform (Using consolidated AIWave) */}
+                <div className="h-10 overflow-hidden bg-black/20 rounded-lg flex items-center justify-center">
+                  <AIWave isListening={isListening} isProcessing={isLoading} />
+                </div>
               </div>
-            </div>
 
             {/* Chat Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-black/40">
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                <p className="text-[10px] text-white/60 leading-relaxed italic">
-                  "I am monitoring your local node. Autopilot is ready for UI instructions."
-                </p>
-              </div>
-              
-              {recentLogs.map((log) => (
-                <div key={log.id} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Activity size={10} className="text-primary/40" />
-                    <span className="text-[8px] font-black uppercase text-white/20">{log.action}</span>
+              {messages.map((msg, i) => (
+                <div key={i} className={cn("flex flex-col gap-1", msg.role === 'user' ? "items-end" : "items-start")}>
+                  <div className={cn(
+                    "p-3 rounded-2xl text-[10px] max-w-[90%] leading-relaxed",
+                    msg.role === 'user' ? "bg-primary text-black font-bold" : "bg-white/5 border border-white/5 text-white/80"
+                  )}>
+                    {msg.content}
                   </div>
-                  <p className="text-[10px] text-white/40 font-mono ml-4 truncate">{log.details}</p>
                 </div>
               ))}
+              {isLoading && (
+                <div className="flex items-center gap-2 text-[9px] text-primary/60 font-black animate-pulse">
+                  <Activity size={10} />
+                  PROCESSING_UPLINK...
+                </div>
+              )}
             </div>
 
             {/* Chat Input */}
@@ -163,22 +174,13 @@ export const FloatingAssistant: React.FC = () => {
             }}
             className={cn(
               "w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative z-10 border-2",
-              isOpen ? "bg-neon-pink text-white border-white/20" : "bg-primary text-black border-primary/40"
+              isOpen ? "bg-neon-pink text-white border-white/20" : "bg-primary text-black border-primary/40",
+              isListening && "animate-pulse"
             )}
           >
             {isOpen ? <X size={24} /> : (
               <div className="flex flex-col items-center">
-                <div className="flex gap-0.5 items-end h-6 mb-1">
-                  {[0.4, 0.7, 0.5, 0.9, 0.6].map((h, i) => (
-                    <motion.div 
-                      key={i}
-                      animate={{ height: [h*20, (1-h)*20, h*20] }}
-                      transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
-                      className="w-1 bg-black rounded-full"
-                    />
-                  ))}
-                </div>
-                <div className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse" />
+                <AIWave isListening={isListening} />
               </div>
             )}
           </motion.button>
@@ -210,7 +212,8 @@ export const FloatingAssistant: React.FC = () => {
             <Bell size={8} className="text-white" />
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </Draggable>
   );
 };

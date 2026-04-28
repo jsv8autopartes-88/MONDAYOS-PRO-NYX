@@ -105,6 +105,20 @@
         "ownerId": { "type": "string" }
       },
       "required": ["id", "name", "code", "ownerId"]
+    },
+    "WebLink": {
+      "title": "WebLink",
+      "description": "A stored external web link.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "category": { "type": "string" },
+        "icon": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "title", "url", "ownerId"]
     }
   },
   "firestore": {
@@ -146,6 +160,14 @@
     "/users/{userId}/skills/{skillId}": {
       "schema": "AgentSkill",
       "description": "Modular agent capabilities library"
+    },
+    "/users/{userId}/links/{linkId}": {
+      "schema": "WebLink",
+      "description": "User's favorite web links"
+    },
+    "/users/{userId}/reports/{reportId}": {
+      "schema": "AppFile",
+      "description": "System generated audit reports"
     }
   }
 }
