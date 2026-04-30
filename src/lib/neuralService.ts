@@ -13,8 +13,17 @@ export class NeuralService {
   private static claude: Anthropic | null = null;
 
   static initialize(credentials: Record<string, string>) {
-    if (credentials['GEMINI_API_KEY']) {
-      this.gemini = new GoogleGenAI(credentials['GEMINI_API_KEY']);
+    let envKey = '';
+    try {
+      if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+        envKey = process.env.GEMINI_API_KEY;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    
+    if (credentials['GEMINI_API_KEY'] || envKey) {
+      this.gemini = new GoogleGenAI({ apiKey: credentials['GEMINI_API_KEY'] || envKey! });
     }
     if (credentials['CLAUDE_API_KEY']) {
       this.claude = new Anthropic({ apiKey: credentials['CLAUDE_API_KEY'] });
@@ -25,10 +34,23 @@ export class NeuralService {
     try {
       switch (provider) {
         case 'gemini':
+          // Re-initialize if missing but ENV has it
+          let envKey = '';
+          try {
+            if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+              envKey = process.env.GEMINI_API_KEY;
+            }
+          } catch (e) {}
+
+          if (!this.gemini && envKey) {
+            this.gemini = new GoogleGenAI({ apiKey: envKey });
+          }
           if (!this.gemini) throw new Error('Gemini not configured');
-          const model = this.gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-          const result = await model.generateContent(prompt);
-          return { content: result.response.text(), provider: 'gemini' };
+          const result = await this.gemini.models.generateContent({
+             model: 'gemini-3.1-flash',
+             contents: prompt,
+          });
+          return { content: result.text || '', provider: 'gemini' };
 
         case 'claude':
           if (!this.claude) throw new Error('Claude not configured');

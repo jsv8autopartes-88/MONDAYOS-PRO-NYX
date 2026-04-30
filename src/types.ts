@@ -106,6 +106,7 @@ export interface AppNotification {
   featureId: string;
   type: 'info' | 'success' | 'warning' | 'error';
   timestamp: number;
+  read?: boolean;
 }
 
 export interface WebLink {

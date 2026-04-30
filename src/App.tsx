@@ -527,10 +527,10 @@ const DashboardContent: React.FC = () => {
                 </div>
                 <div className="glass-card overflow-hidden">
                   <div className="max-h-[70vh] overflow-y-auto font-mono text-xs p-6 space-y-3 bg-black/40 custom-scrollbar">
-                    {logs.length === 0 ? (
-                      <div className="text-white/20 italic text-center py-20">No actions recorded yet...</div>
+                    {logs.filter(l => !searchQuery || l.action.toLowerCase().includes(searchQuery.toLowerCase()) || l.details.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                      <div className="text-white/20 italic text-center py-20">No actions recorded matching query...</div>
                     ) : (
-                      logs.map((log) => (
+                      logs.filter(l => !searchQuery || l.action.toLowerCase().includes(searchQuery.toLowerCase()) || l.details.toLowerCase().includes(searchQuery.toLowerCase())).map((log) => (
                         <div key={log.id} className="flex items-start gap-6 group border-b border-white/5 pb-3">
                           <span className="text-white/30 whitespace-nowrap">[{new Date(log.timestamp).toLocaleString()}]</span>
                           <span className="text-neon-blue font-bold min-w-[120px]">{log.action}</span>

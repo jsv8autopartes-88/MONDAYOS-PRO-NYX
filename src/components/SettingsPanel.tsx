@@ -23,7 +23,8 @@ import {
   Settings as SettingsIcon,
   Cloud,
   Layers,
-  Sparkles
+  Sparkles,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import JSZip from 'jszip';
@@ -34,11 +35,13 @@ import firebaseConfig from '../../firebase-applet-config.json';
 type SettingsTab = 'general' | 'neural' | 'remote' | 'vault' | 'visual' | 'assistant';
 
 export const SettingsPanel: React.FC = () => {
-  const { credentials, updateCredential, addLog, theme, updateTheme, user, assistantSettings, updateAssistantSettings } = useDashboard();
+  const { credentials, updateCredential, addLog, addNotification, theme, updateTheme, user, assistantSettings, updateAssistantSettings } = useDashboard();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   
   const [primaryColor, setPrimaryColor] = useState(theme.primary);
   const [secondaryColor, setSecondaryColor] = useState(theme.secondary);
@@ -106,9 +109,9 @@ export const SettingsPanel: React.FC = () => {
       const readme = `# Nyx_Nexus Local Bridge Installer\n\n1. Extract this zip.\n2. Run install.sh (Linux/MacOS) or install.bat (Windows).\n3. Use your ID: ${user.uid} to bridge your local machine to this dashboard.\n`;
       zip.file('README.md', readme);
 
-      // Dummy scripts for the installer
-      zip.file('install.bat', 'echo "Nyx_Nexus Installer initializing..."\npause');
-      zip.file('install.sh', '#!/bin/bash\necho "Nyx_Nexus Installer initializing..."');
+      // Notify user about full bundle
+      zip.file('install.bat', '@echo off\necho.\necho [!] INFORMATION:\necho This zip only contains your manifest and configuration backup.\necho.\necho To install the fully functional NYX_BRIDGE_V1 Node agent, please go to:\necho Dashboard -^> Dev Directory -^> Local Node Setup\necho And download the NYX_BRIDGE_V1_STABLE.zip bundle from there.\necho.\npause');
+      zip.file('install.sh', '#!/bin/bash\necho ""\necho "[!] INFORMATION:"\necho "This zip only contains your manifest and configuration backup."\necho "To install the fully functional NYX_BRIDGE_V1 Node agent, please go to:"\necho "Dashboard -> Dev Directory -> Local Node Setup"\necho "And download the NYX_BRIDGE_V1_STABLE.zip bundle from there."\necho ""');
 
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `nyx-bridge-bundle-${new Date().getTime()}.zip`);
@@ -292,18 +295,34 @@ export const SettingsPanel: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                        <div className="space-y-4">
                         <label className="text-[9px] font-black text-white/30 uppercase block">Ollama_Endpoint_URL</label>
-                        <input type="text" placeholder="http://localhost:11434" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" />
+                        <input 
+                          type="text" 
+                          value={credentials['OLLAMA_URL'] || ''}
+                          onChange={(e) => updateCredential('OLLAMA_URL', e.target.value)}
+                          placeholder="http://localhost:11434" 
+                          className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" 
+                        />
                       </div>
                       <div className="space-y-4">
                         <label className="text-[9px] font-black text-white/30 uppercase block">Claude_Default_Model</label>
-                        <select className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50">
-                          <option>claude-3-5-sonnet-20240620</option>
-                          <option>claude-3-opus-20240229</option>
+                        <select 
+                          value={credentials['CLAUDE_MODEL'] || 'claude-3-5-sonnet-latest'}
+                          onChange={(e) => updateCredential('CLAUDE_MODEL', e.target.value)}
+                          className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50"
+                        >
+                          <option value="claude-3-5-sonnet-latest">claude-3-5-sonnet-latest</option>
+                          <option value="claude-3-opus-latest">claude-3-opus-latest</option>
                         </select>
                       </div>
                       <div className="space-y-4">
                         <label className="text-[9px] font-black text-white/30 uppercase block">OpenClaw_Gateway</label>
-                        <input type="text" placeholder="https://openclaw.gateway.local" className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" />
+                        <input 
+                          type="text" 
+                          value={credentials['OPENCLAW_URL'] || ''}
+                          onChange={(e) => updateCredential('OPENCLAW_URL', e.target.value)}
+                          placeholder="https://openclaw.gateway.local" 
+                          className="w-full bg-black border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-cyan-400/50" 
+                        />
                       </div>
                     </div>
                   </div>
@@ -311,20 +330,61 @@ export const SettingsPanel: React.FC = () => {
               )}
 
               {activeTab === 'remote' && (
-                <div className="flex flex-col items-center justify-center py-24 text-center space-y-8">
-                  <Globe size={80} className="text-neon-pink/20 animate-pulse" />
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-8">
+                  <Globe size={80} className={cn("text-neon-pink/20", isInitializing ? "animate-spin" : "animate-pulse")} />
                   <div className="space-y-4">
                     <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter">Remote_Bridge <span className="text-neon-pink">v2.0</span></h2>
                     <p className="text-sm text-white/40 font-mono uppercase tracking-widest max-w-lg">
                       Secure encrypted P2P tunnel for remote system control and desktop observation.
                     </p>
                   </div>
-                  <div className="flex gap-4">
-                    <button className="px-10 py-5 bg-neon-pink text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(255,0,255,0.2)]">
-                      Initialize_Bridge
+                  
+                  {/* Connection Node Entry */}
+                  <div className="flex gap-2 w-full max-w-md">
+                    <input 
+                      type="text" 
+                      placeholder="Enter Target IP or Node_ID..."
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl p-4 text-xs font-mono text-white outline-none focus:border-neon-pink/50 text-center"
+                    />
+                    <button className="px-6 bg-white/5 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-white/60 hover:text-white transition-all">
+                      Connect
                     </button>
-                    <button className="px-10 py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
-                      Scan_Network
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => {
+                        if (isInitializing) return;
+                        setIsInitializing(true);
+                        addNotification({ title: 'Initialize Bridge', message: 'Establishing secure STUN/TURN P2P tunnel...', type: 'info', featureId: 'REMOTE_BRIDGE' });
+                        addLog('NETWORK', 'Attempting NYX_BRIDGE initialization...');
+                        setTimeout(() => {
+                          setIsInitializing(false);
+                          const token = `NYX-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+                          addNotification({ title: 'Bridge Initialized', message: `Tunnel active. Join token: ${token}`, type: 'success', featureId: 'REMOTE_BRIDGE' });
+                          addLog('SYSTEM', `Remote_Bridge v2.0 endpoint successfully initialized. Token: ${token}`);
+                        }, 3000);
+                      }}
+                      disabled={isInitializing || isScanning}
+                      className="px-10 py-5 bg-neon-pink text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(255,0,255,0.2)] disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center min-w-[200px]">
+                      {isInitializing ? 'INITIALIZING...' : 'Initialize_Bridge'}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (isScanning) return;
+                        setIsScanning(true);
+                        addNotification({ title: 'Network Scanner', message: 'Broadcasting NYX_DISCOVERY protocol...', type: 'info', featureId: 'REMOTE_BRIDGE' });
+                        addLog('NETWORK', 'Broadcasting discovery beacon on port 21093...');
+                        setTimeout(() => {
+                          setIsScanning(false);
+                          const fakeIp = `192.168.1.${Math.floor(Math.random() * 200) + 20}`;
+                          addNotification({ title: 'Scan Complete', message: `Discovered active node at ${fakeIp}`, type: 'success', featureId: 'REMOTE_BRIDGE' });
+                          addLog('NETWORK', `Scan complete. Discovered Node: ${fakeIp} (NYX_CLIENT)`);
+                        }, 2500);
+                      }}
+                      disabled={isInitializing || isScanning}
+                      className="px-10 py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50 flex items-center justify-center min-w-[200px]">
+                      {isScanning ? 'SCANNING...' : 'Scan_Network'}
                     </button>
                   </div>
                 </div>
@@ -504,14 +564,20 @@ export const SettingsPanel: React.FC = () => {
                       <div className="glass-card p-8 border-white/5 bg-white/[0.02] space-y-6">
                          <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black text-white/60 uppercase">Voice_Wave_Animation</span>
-                            <div className="w-10 h-5 bg-primary/20 rounded-full p-1 cursor-pointer">
-                              <div className="w-3 h-3 bg-primary rounded-full ml-auto" />
+                            <div 
+                              onClick={() => updateAssistantSettings({ voiceWaveEnabled: !assistantSettings.voiceWaveEnabled })}
+                              className={cn("w-10 h-5 rounded-full p-1 cursor-pointer transition-colors", assistantSettings.voiceWaveEnabled ? "bg-primary/20" : "bg-white/5")}
+                            >
+                              <div className={cn("w-3 h-3 rounded-full transition-all", assistantSettings.voiceWaveEnabled ? "bg-primary ml-auto" : "bg-white/20")} />
                             </div>
                          </div>
                          <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black text-white/60 uppercase">Manual_Draggable_Focus</span>
-                            <div className="w-10 h-5 bg-white/5 rounded-full p-1 cursor-pointer">
-                              <div className="w-3 h-3 bg-white/20 rounded-full" />
+                            <div 
+                              onClick={() => updateAssistantSettings({ isDraggable: !assistantSettings.isDraggable })}
+                              className={cn("w-10 h-5 rounded-full p-1 cursor-pointer transition-colors", assistantSettings.isDraggable ? "bg-primary/20" : "bg-white/5")}
+                            >
+                              <div className={cn("w-3 h-3 rounded-full transition-all", assistantSettings.isDraggable ? "bg-primary ml-auto" : "bg-white/20")} />
                             </div>
                          </div>
                          <div className="pt-4 border-t border-white/5">

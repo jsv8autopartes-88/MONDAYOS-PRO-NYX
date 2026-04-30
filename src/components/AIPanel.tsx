@@ -27,6 +27,7 @@ export const AIPanel: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const chatRef = useRef<any>(null);
 
   useEffect(() => {
     if (scrollRef.current && !showMemory) {
@@ -41,8 +42,14 @@ export const AIPanel: React.FC = () => {
     setIsSpeaking(index);
 
     try {
-      const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
-      const ai = new GoogleGenAI(apiKey!);
+      let envKeyTts = '';
+      try {
+        if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+          envKeyTts = process.env.GEMINI_API_KEY;
+        }
+      } catch (e) {}
+      const apiKey = credentials['GEMINI_API_KEY'] || envKeyTts;
+      const ai = new GoogleGenAI({ apiKey: apiKey! });
       const response = await ai.models.generateContent({
         model: "gemini-3.1-flash-tts-preview",
         contents: [{ parts: [{ text: `Say clearly: ${text.substring(0, 500)}` }] }],
@@ -93,8 +100,14 @@ export const AIPanel: React.FC = () => {
 
     try {
       if (mode === 'image') {
-        const apiKey = credentials['GEMINI_API_KEY'] || process.env.GEMINI_API_KEY;
-        const ai = new GoogleGenAI(apiKey!);
+        let envKeyImg = '';
+        try {
+          if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+            envKeyImg = process.env.GEMINI_API_KEY;
+          }
+        } catch (e) {}
+        const apiKey = credentials['GEMINI_API_KEY'] || envKeyImg;
+        const ai = new GoogleGenAI({ apiKey: apiKey! });
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image-preview',
           contents: { parts: [{ text: userMessage }] },

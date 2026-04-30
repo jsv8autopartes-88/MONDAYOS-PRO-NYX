@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Keyboard, MessageSquare, X, Send, Sparkles, Activity, Bell, GripVertical } from 'lucide-react';
+import { Mic, Keyboard, MessageSquare, X, Send, Sparkles, Activity, Bell } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Draggable from 'react-draggable';
 import { GoogleGenAI } from '@google/genai';
@@ -74,14 +74,11 @@ export const FloatingAssistant: React.FC = () => {
             >
               {/* Chat Header */}
               <div className={cn(
-                "p-4 border-b border-white/5 flex flex-col gap-3 transition-colors",
+                "p-4 border-b border-white/5 flex flex-col gap-3 transition-colors drag-handle cursor-grab active:cursor-grabbing",
                 isListening ? "bg-primary/20" : "bg-primary/10"
               )}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="drag-handle cursor-grab active:cursor-grabbing p-1 hover:bg-white/5 rounded">
-                      <GripVertical size={14} className="text-white/20" />
-                    </div>
                     <div className="relative">
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
                         <Sparkles size={16} />
@@ -89,13 +86,13 @@ export const FloatingAssistant: React.FC = () => {
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-black" />
                     </div>
                     <div>
-                      <h4 className="text-[11px] font-black uppercase text-white">Nyx Assistant</h4>
-                      <p className="text-[8px] text-primary uppercase font-mono animate-pulse">{isLoading ? 'Thinking...' : autopilotStatus}</p>
+                      <h4 className="text-[11px] font-black uppercase text-white pointer-events-none">Nyx Assistant</h4>
+                      <p className="text-[8px] text-primary uppercase font-mono animate-pulse pointer-events-none">{isLoading ? 'Thinking...' : autopilotStatus}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => setIsKeyboardMode(!isKeyboardMode)}
+                      onClick={(e) => { e.stopPropagation(); setIsKeyboardMode(!isKeyboardMode); }}
                       className={cn(
                         "p-1.5 rounded-lg transition-all",
                         isKeyboardMode ? "bg-primary text-black" : "text-white/20 hover:text-white"
@@ -103,7 +100,7 @@ export const FloatingAssistant: React.FC = () => {
                     >
                       <Keyboard size={14} />
                     </button>
-                    <button onClick={() => setIsOpen(false)} className="text-white/20 hover:text-white"><X size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} className="text-white/20 hover:text-white"><X size={16} /></button>
                   </div>
                 </div>
 
@@ -173,7 +170,7 @@ export const FloatingAssistant: React.FC = () => {
               }
             }}
             className={cn(
-              "w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative z-10 border-2",
+              "drag-handle cursor-grab active:cursor-grabbing w-16 h-16 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative z-10 border-2",
               isOpen ? "bg-neon-pink text-white border-white/20" : "bg-primary text-black border-primary/40",
               isListening && "animate-pulse"
             )}

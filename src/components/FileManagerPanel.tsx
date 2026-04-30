@@ -40,16 +40,16 @@ export const FileManagerPanel: React.FC = () => {
       // In a real scenario with blobs: 
       // const blob = await removeBackground(imageSrc);
       
-      addNotification('Neural processing engine warming up...', 'info');
+      addNotification({ title: 'Neural Engine', message: 'Neural processing engine warming up...', type: 'info', featureId: 'NEURAL_CLEANUP' });
       
       // Simulate industrial wait time for processing
       setTimeout(() => {
         setIsProcessing(false);
         addLog('NEURAL_SUCCESS', `Asset ${activeFile.name} normalized and cleaned.`);
-        addNotification('Optimization Complete', 'Asset is now ready for deployment.', 'success');
+        addNotification({ title: 'Optimization Complete', message: 'Asset is now ready for deployment.', type: 'success', featureId: 'NEURAL_CLEANUP' });
       }, 4000);
     } catch (error: any) {
-      addNotification('Neural Error', error.message, 'error');
+      addNotification({ title: 'Neural Error', message: error.message, type: 'error', featureId: 'NEURAL_CLEANUP' });
       setIsProcessing(false);
     }
   };

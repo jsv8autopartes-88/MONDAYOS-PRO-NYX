@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -13,6 +13,49 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { AppNotification } from '../types';
+
+const ToastNotification: React.FC<{ notif: AppNotification }> = ({ notif }) => {
+  const { markNotificationRead, setTutorial } = useDashboard();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      markNotificationRead(notif.id);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [notif.id, markNotificationRead]);
+
+  return (
+    <motion.div
+      initial={{ x: 100, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 100, opacity: 0 }}
+      onClick={() => {
+        setTutorial(notif.featureId);
+        markNotificationRead(notif.id);
+      }}
+      className="pointer-events-auto cursor-pointer glass-card p-4 border-l-4 border-l-primary flex gap-4 shadow-2xl hover:translate-x-[-4px] transition-transform w-full"
+    >
+      <div className="text-primary mt-1">
+        {notif.type === 'success' ? <CheckCircle2 size={16} /> : notif.type === 'warning' ? <AlertCircle size={16} /> : <Info size={16} />}
+      </div>
+      <div className="flex-1">
+        <h4 className="text-[11px] font-black uppercase text-white tracking-widest">{notif.title}</h4>
+        <p className="text-[10px] text-white/40 font-mono italic mt-1 leading-relaxed">{notif.message}</p>
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[8px] font-black text-primary uppercase">Click for Tutorial</span>
+          <ChevronRight size={10} className="text-primary" />
+        </div>
+      </div>
+      <button 
+        onClick={(e) => { e.stopPropagation(); markNotificationRead(notif.id); }}
+        className="text-white/20 hover:text-white"
+      >
+        <X size={14} />
+      </button>
+    </motion.div>
+  );
+};
 
 export const GuidanceSystem: React.FC = () => {
   const { 
@@ -80,36 +123,8 @@ export const GuidanceSystem: React.FC = () => {
       {/* Notifications Stack */}
       <div className="absolute top-6 right-6 flex flex-col gap-3 w-80 items-end">
         <AnimatePresence>
-          {notifications.map((notif) => (
-            <motion.div
-              key={notif.id}
-              initial={{ x: 100, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 100, opacity: 0 }}
-              onClick={() => {
-                setTutorial(notif.featureId);
-                clearNotification(notif.id);
-              }}
-              className="pointer-events-auto cursor-pointer glass-card p-4 border-l-4 border-l-primary flex gap-4 shadow-2xl hover:translate-x-[-4px] transition-transform w-full"
-            >
-              <div className="text-primary mt-1">
-                {notif.type === 'success' ? <CheckCircle2 size={16} /> : notif.type === 'warning' ? <AlertCircle size={16} /> : <Info size={16} />}
-              </div>
-              <div className="flex-1">
-                <h4 className="text-[11px] font-black uppercase text-white tracking-widest">{notif.title}</h4>
-                <p className="text-[10px] text-white/40 font-mono italic mt-1 leading-relaxed">{notif.message}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-[8px] font-black text-primary uppercase">Click for Tutorial</span>
-                  <ChevronRight size={10} className="text-primary" />
-                </div>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); clearNotification(notif.id); }}
-                className="text-white/20 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
+          {notifications.filter(n => !n.read).map((notif) => (
+            <ToastNotification key={notif.id} notif={notif} />
           ))}
         </AnimatePresence>
       </div>

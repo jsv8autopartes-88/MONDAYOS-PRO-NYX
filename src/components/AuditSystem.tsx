@@ -22,12 +22,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db_local } from '../lib/localDB';
 
 export const AuditSystem: React.FC = () => {
-  const { addLog } = useDashboard();
+  const { addLog, searchQuery } = useDashboard();
   const [isGenerating, setIsGenerating] = useState(false);
+  const query = (searchQuery || '').toLowerCase();
   
   // Live query from local DB (Industrial feature)
-  const auditLogs = useLiveQuery(() => db_local.auditLogs.reverse().limit(10).toArray());
-  const inventoryItems = useLiveQuery(() => db_local.inventory.toArray());
+  const auditLogsRaw = useLiveQuery(() => db_local.auditLogs.reverse().limit(30).toArray());
+  const auditLogs = auditLogsRaw?.filter(l => !query || l.action.toLowerCase().includes(query) || l.details.toLowerCase().includes(query));
+  
+  const inventoryItemsRaw = useLiveQuery(() => db_local.inventory.toArray());
+  const inventoryItems = inventoryItemsRaw?.filter(i => !query || i.name.toLowerCase().includes(query) || i.sku.toLowerCase().includes(query));
+  
   const inventoryStats = useLiveQuery(() => db_local.inventory.count());
 
   const addToInventory = async () => {

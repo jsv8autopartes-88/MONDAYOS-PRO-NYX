@@ -28,7 +28,6 @@ interface DashboardContextType extends AppState {
   deleteFile: (id: string) => void;
   updateAiContext: (context: string) => void;
   setSearchQuery: (query: string) => void;
-  updateTheme: (theme: Partial<AppState['theme']>) => void;
   addShortcut: (command: string, scriptId: string) => void;
   removeShortcut: (command: string) => void;
   sendCommand: (agentId: string, cmd: string, args?: any[]) => Promise<void>;
@@ -52,6 +51,7 @@ interface DashboardContextType extends AppState {
   activeTutorial: string | null;
   addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp'>) => void;
   clearNotification: (id: string) => void;
+  markNotificationRead: (id: string) => void;
   setTutorial: (featureId: string | null) => void;
 }
 
@@ -671,6 +671,13 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => ({ ...prev, notifications: prev.notifications.filter(n => n.id !== id) }));
   };
 
+  const markNotificationRead = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      notifications: prev.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+    }));
+  };
+
   const setTutorial = (featureId: string | null) => {
     setState(prev => ({ ...prev, activeTutorial: featureId }));
   };
@@ -770,15 +777,9 @@ Global Status: ${stats.status}
       details,
       previousState
     };
-    setState(prev => {
+      setState(prev => {
       const newLogs = [newLog, ...prev.logs].slice(0, 100);
       
-      // Auto-backup logic: Trigger report every 10 logs (Segment for data resilience)
-      // Avoid infinite loop by only triggering for non-system actions if needed
-      if (newLogs.length % 10 === 0 && newLogs.length > 0 && action !== 'GENERATE_REPORT') {
-        setTimeout(() => generateSystemReport(), 100);
-      }
-
       return {
         ...prev,
         logs: newLogs
@@ -831,6 +832,7 @@ Global Status: ${stats.status}
       generateSystemReport,
       addNotification,
       clearNotification,
+      markNotificationRead,
       setTutorial
     }}>
       {children}

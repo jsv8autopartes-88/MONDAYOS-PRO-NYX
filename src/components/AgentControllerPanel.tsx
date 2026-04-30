@@ -44,7 +44,13 @@ import { AgentNetworkGraph } from './AgentNetworkGraph';
 import { DevDirectory } from './DevDirectory';
 import { LocalAgentSetup } from './LocalAgentSetup';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let envKeyTop = '';
+try {
+  if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+    envKeyTop = process.env.GEMINI_API_KEY;
+  }
+} catch (e) {}
+const ai = new GoogleGenAI({ apiKey: envKeyTop });
 
 export const AgentControllerPanel: React.FC = () => {
   const { 
