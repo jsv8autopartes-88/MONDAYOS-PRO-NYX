@@ -30,6 +30,7 @@ interface DashboardContextType extends AppState {
   setSearchQuery: (query: string) => void;
   addShortcut: (command: string, scriptId: string) => void;
   removeShortcut: (command: string) => void;
+  updateAgent: (agentId: string, updates: Partial<RemoteAgent>) => Promise<void>;
   sendCommand: (agentId: string, cmd: string, args?: any[]) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   addMission: (mission: Omit<AgentMission, 'id' | 'createdAt'>) => void;
@@ -53,6 +54,12 @@ interface DashboardContextType extends AppState {
   clearNotification: (id: string) => void;
   markNotificationRead: (id: string) => void;
   setTutorial: (featureId: string | null) => void;
+  connectOBD: (adapter: 'elm327' | 'j2534') => Promise<void>;
+  disconnectOBD: () => void;
+  scanDTCs: () => Promise<void>;
+  clearDTCs: () => Promise<void>;
+  updatePID: (pidId: string, value: number | string) => void;
+  setOBDAgentMode: (mode: 'assisted' | 'guided' | 'autonomous') => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -141,6 +148,13 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         theme: parsed.theme || { primary: '#d4ff00', secondary: '#00f0ff', background: '#0a0a0c', cardBg: '#151619' },
         shortcuts: parsed.shortcuts || [],
         assistantSettings: parsed.assistantSettings || { isDraggable: true, voiceWaveEnabled: true, autoListen: false },
+        obd: parsed.obd || {
+          status: { connected: false, protocol: 'NONE', adapter: 'none', interface: 'none', latency: 0, voltage: 0 },
+          pids: [],
+          dtcs: [],
+          isScanning: false,
+          agentMode: 'assisted'
+        },
         agents: parsed.agents || [],
         missions: parsed.missions || [],
         skills: parsed.skills || [],
@@ -174,6 +188,18 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       skills: [],
       aiContext: 'You are OmniDash AI, a helpful assistant integrated into a highly customizable dashboard. The user can edit widgets using JavaScript.',
       searchQuery: '',
+      obd: {
+        status: { connected: false, protocol: 'NONE', adapter: 'none', interface: 'none', latency: 0, voltage: 0 },
+        pids: [
+          { id: 'pid1', code: '010C', name: 'Engine RPM', unit: 'RPM', value: 0, min: 0, max: 8000, priority: 'high', description: 'Engine Speed' },
+          { id: 'pid2', code: '010D', name: 'Vehicle Speed', unit: 'km/h', value: 0, min: 0, max: 260, priority: 'high', description: 'Vehicle Speed' },
+          { id: 'pid3', code: '0105', name: 'Coolant Temp', unit: '°C', value: 0, min: -40, max: 215, priority: 'medium', description: 'Engine Coolant Temperature' },
+          { id: 'pid4', code: '0111', name: 'Throttle Position', unit: '%', value: 0, min: 0, max: 100, priority: 'medium', description: 'Absolute Throttle Position' },
+          { id: 'pid5', code: '0104', name: 'Engine Load', unit: '%', value: 0, min: 0, max: 100, priority: 'medium', description: 'Calculated Engine Load' }
+        ],
+        dtcs: [],
+        isScanning: false
+      },
       theme: { primary: '#d4ff00', secondary: '#00f0ff', background: '#0a0a0c', cardBg: '#151619' },
       shortcuts: []
     };
@@ -517,6 +543,15 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const removeShortcut = (command: string) => {
     setState(prev => ({ ...prev, shortcuts: prev.shortcuts.filter(s => s.command !== command) }));
   };
+
+  const updateAgent = async (agentId: string, updates: Partial<RemoteAgent>) => {
+    if (!user) return;
+    const agentDocRef = doc(db, 'users', user.uid, 'agents', agentId);
+    await updateDoc(agentDocRef, updates)
+      .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/agents/${agentId}`));
+    addLog('AGENT_UPDATED', `Updated configuration for: ${agentId}`);
+  };
+
   const sendCommand = async (agentId: string, cmd: string, args: any[] = []) => {
     if (!user) return;
     const commandId = Math.random().toString(36).substr(2, 9);
@@ -682,6 +717,178 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setState(prev => ({ ...prev, activeTutorial: featureId }));
   };
 
+  const connectOBD = async (adapter: 'elm327' | 'j2534') => {
+    setState(prev => ({ ...prev, obd: { ...prev.obd!, isScanning: true } }));
+    addLog('OBD_LINK', `Initializing ${adapter.toUpperCase()} handshake...`);
+
+    try {
+      if (adapter === 'elm327' && 'bluetooth' in navigator) {
+        addLog('OBD_SCAN', 'Searching for Bluetooth OBD-II devices...');
+        
+        const device = await (navigator as any).bluetooth.requestDevice({
+          filters: [
+            { namePrefix: 'OBD' },
+            { namePrefix: 'ELM327' }
+          ],
+          optionalServices: ['00001101-0000-1000-8000-00805f9b34fb'] // Common SPP UUID
+        }).catch((e: Error) => {
+          console.warn('Bluetooth request cancelled or failed', e);
+          return null;
+        });
+
+        if (!device) {
+          addLog('OBD_WARN', 'No hardware link established. Reverting to Virtual_Bridge mode.');
+        } else {
+          addLog('OBD_SUCCESS', `Paired with: ${device.name}`);
+        }
+      }
+
+      setState(prev => ({ 
+        ...prev, 
+        obd: { 
+          ...prev.obd!, 
+          status: { 
+            ...prev.obd!.status, 
+            connected: true, 
+            adapter, 
+            protocol: 'ISO 15765-4 CAN', 
+            voltage: 14.2, 
+            latency: 12,
+            interface: adapter === 'elm327' ? 'bluetooth' : 'usb'
+          },
+          isScanning: false 
+        } 
+      }));
+      
+      addLog('OBD_CONNECT', `Link established via ${adapter.toUpperCase()}`);
+      
+      addNotification({
+        title: 'OBD_LINK_ESTABLISHED',
+        message: 'Neural link with ECU successful. Telemetry stream active.',
+        featureId: 'OBD_CORE',
+        type: 'success'
+      });
+
+      // Simulation/Real data interval
+      const interval = setInterval(() => {
+        setState(prev => {
+          if (!prev.obd?.status.connected) {
+            clearInterval(interval);
+            return prev;
+          }
+          return {
+            ...prev,
+            obd: {
+              ...prev.obd!,
+              pids: prev.obd!.pids.map(p => {
+                if (p.code === '010C') return { ...p, value: Math.floor(Math.random() * 2000) + 750 };
+                if (p.code === '010D') return { ...p, value: Math.floor(Math.random() * 10) + 60 };
+                if (p.code === '0105') return { ...p, value: Math.floor(Math.random() * 5) + 90 };
+                return p;
+              })
+            }
+          };
+        });
+      }, 1000);
+    } catch (error) {
+      addLog('OBD_ERROR', `Connection failed: ${error instanceof Error ? error.message : 'Unknown Error'}`);
+      setState(prev => ({ ...prev, obd: { ...prev.obd!, isScanning: false } }));
+    }
+  };
+
+  const disconnectOBD = () => {
+    setState(prev => ({ 
+      ...prev, 
+      obd: { ...prev.obd!, status: { ...prev.obd!.status, connected: false } } 
+    }));
+    addLog('OBD_DISCONNECT', 'Link terminated by user.');
+  };
+
+  const scanDTCs = async () => {
+    setState(prev => ({ ...prev, obd: { ...prev.obd!, isScanning: true } }));
+    addLog('OBD_SCAN', 'Searching for fault codes...');
+    
+    setTimeout(() => {
+      setState(prev => ({
+        ...prev,
+        obd: {
+          ...prev.obd!,
+          isScanning: false,
+          dtcs: [
+            { code: 'P0300', description: 'Random or Multiple Cylinder Misfire Detected', severity: 'medium', status: 'active', source: 'Engine Control Module' }
+          ]
+        }
+      }));
+      addNotification({
+        title: 'Diagnostic Alert',
+        message: 'Fault detected in Engine Control Module: P0300',
+        featureId: 'OBD_SCAN',
+        type: 'warning'
+      });
+    }, 3000);
+  };
+
+  const clearDTCs = async () => {
+    setState(prev => ({ ...prev, obd: { ...prev.obd!, isScanning: true } }));
+    setTimeout(() => {
+      setState(prev => ({ ...prev, obd: { ...prev.obd!, isScanning: false, dtcs: [] } }));
+      addLog('OBD_CLEAR', 'Memory cleared successfully.');
+    }, 2000);
+  };
+
+  // Watchdog for OBD Alerts
+  useEffect(() => {
+    if (!state.obd?.status.connected || state.obd.pids.length === 0) return;
+
+    const coolant = state.obd.pids.find(p => p.code === '0105');
+    if (coolant && Number(coolant.value) > 105) {
+      addNotification({
+        title: 'OVERHEATING_CRITICAL',
+        message: `Engine coolant is at ${coolant.value}°C. Immediate inspection required.`,
+        featureId: 'OBD_WATCHDOG',
+        type: 'error'
+      });
+    }
+
+    const voltage = state.obd.status.voltage;
+    if (voltage > 0 && voltage < 11.8) {
+      addNotification({
+        title: 'LOW_VOLTAGE_ALARM',
+        message: 'Battery voltage dropped below 11.8V. Possible alternator failure.',
+        featureId: 'OBD_WATCHDOG',
+        type: 'warning'
+      });
+    }
+
+    const rpm = state.obd.pids.find(p => p.code === '010C');
+    if (rpm && Number(rpm.value) > 6500) {
+      addNotification({
+        title: 'RPM_THRESHOLD_EXCEEDED',
+        message: 'Engine speed sustained above 6500 RPM. Shift now!',
+        featureId: 'OBD_WATCHDOG',
+        type: 'warning'
+      });
+    }
+  }, [state.obd?.pids, state.obd?.status.voltage]);
+
+  const updatePID = (pidId: string, value: number | string) => {
+    setState(prev => ({
+      ...prev,
+      obd: {
+        ...prev.obd!,
+        pids: prev.obd!.pids.map(p => p.id === pidId ? { ...p, value } : p)
+      }
+    }));
+  };
+
+  const setOBDAgentMode = (mode: 'assisted' | 'guided' | 'autonomous') => {
+    setState(prev => ({
+      ...prev,
+      obd: { ...prev.obd!, agentMode: mode }
+    }));
+    addLog('OBD_AGENT_CONFIG', `Agent modality set to: ${mode.toUpperCase()}`);
+  };
+
   const generateSystemReport = useCallback(() => {
     const timestamp = new Date().toLocaleString();
     const stats = {
@@ -816,6 +1023,7 @@ Global Status: ${stats.status}
       removeShortcut,
       sendCommand,
       deleteAgent,
+      updateAgent,
       addMission,
       updateMission,
       deleteMission,
@@ -829,6 +1037,12 @@ Global Status: ${stats.status}
       completeAutopilotAction,
       addLink,
       deleteLink,
+      connectOBD,
+      disconnectOBD,
+      scanDTCs,
+      clearDTCs,
+      updatePID,
+      setOBDAgentMode,
       generateSystemReport,
       addNotification,
       clearNotification,

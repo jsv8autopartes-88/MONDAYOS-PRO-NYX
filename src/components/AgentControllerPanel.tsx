@@ -74,10 +74,40 @@ export const AgentControllerPanel: React.FC = () => {
     clearAutopilotQueue,
     autopilotQueue,
     autopilotStatus,
-    searchQuery
+    searchQuery,
+    updateAgent
   } = useDashboard();
   
   const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup' | 'autopilot' | 'reports'>('nodes');
+
+  useEffect(() => {
+    const handleNav = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        const tabMap: Record<string, typeof activeTab> = {
+          'skills': 'skills',
+          'missions': 'missions',
+          'evo': 'evolution',
+          'directory': 'directory',
+          'setup': 'setup',
+          'nodes': 'nodes',
+          'autopilot': 'autopilot',
+          'reports': 'reports'
+        };
+        if (tabMap[e.detail]) {
+          setActiveTab(tabMap[e.detail]);
+          // If we are jumping to missions, maybe focus the input?
+          if (e.detail === 'missions') {
+            setTimeout(() => {
+              const input = document.querySelector('input[placeholder="DESIGN_GOAL..."]') as HTMLInputElement;
+              if (input) input.focus();
+            }, 500);
+          }
+        }
+      }
+    };
+    window.addEventListener('nav-subtab', handleNav);
+    return () => window.removeEventListener('nav-subtab', handleNav);
+  }, []);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [commands, setCommands] = useState<AgentCommand[]>([]);
   const [inputCmd, setInputCmd] = useState('');
@@ -87,6 +117,7 @@ export const AgentControllerPanel: React.FC = () => {
   const [newMissionGoal, setNewMissionGoal] = useState('');
   const [isEvolvingSkill, setIsEvolvingSkill] = useState<string | null>(null);
   const [evolutionLogs, setEvolutionLogs] = useState<{timestamp: number, message: string}[]>([]);
+  const [expandedCmds, setExpandedCmds] = useState<string[]>([]);
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ description: '', code: '' });
 
@@ -164,6 +195,12 @@ export const AgentControllerPanel: React.FC = () => {
     return () => unsubscribe();
   }, [user, selectedAgentId]);
 
+  const toggleCmdExpansion = (id: string) => {
+    setExpandedCmds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
   const handleSendCommand = async () => {
     if (!selectedAgentId || !inputCmd.trim()) return;
     await sendCommand(selectedAgentId, inputCmd.trim());
@@ -240,6 +277,45 @@ export const AgentControllerPanel: React.FC = () => {
     } finally {
       setIsPlanningMission(false);
     }
+  };
+
+  const generateMissionWithAI = async () => {
+    if (!newMissionGoal.trim()) return;
+    setIsPlanningMission(true);
+    try {
+      const prompt = `Goal: "${newMissionGoal}". Analyze this tactical objective and create an optimized mission plan. Return JSON { title, goal_summary, subtasks: [{description}] }`;
+      const result = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+        config: { responseMimeType: "application/json" }
+      });
+      const data = JSON.parse(result.text || '{}');
+      if (data.title) {
+        addMission({
+          title: data.title,
+          goal: data.goal_summary || newMissionGoal,
+          status: 'active',
+          subtasks: (data.subtasks || []).map((s: any) => ({
+            id: Math.random().toString(36).substr(2, 5),
+            description: s.description,
+            status: 'pending'
+          }))
+        });
+        setNewMissionGoal('');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsPlanningMission(false);
+    }
+  };
+
+  const toggleSkillForAgent = async (agentId: string, skillId: string) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+    const currentSkills = agent.skillIds || [];
+    const newSkills = currentSkills.includes(skillId) ? currentSkills.filter(id => id !== skillId) : [...currentSkills, skillId];
+    await updateAgent(agentId, { skillIds: newSkills });
   };
 
   const adaptMission = async (missionId: string) => {
@@ -475,35 +551,57 @@ export const AgentControllerPanel: React.FC = () => {
                       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
                         <div className="flex flex-col gap-4 overflow-hidden">
                           <div className="flex-1 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/5">
-                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
-                              <h4 className="text-[10px] text-primary/60 font-black uppercase">Active Processes</h4>
-                              <span className="text-[8px] text-white/20 uppercase tracking-widest italic leading-none">Top 15 Threads</span>
+                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2 text-primary">
+                              <h4 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <Zap size={12} fill="currentColor" /> Active_Capabilities
+                              </h4>
                             </div>
-                            <table className="w-full text-left">
-                              <thead className="text-[8px] text-white/20 uppercase tracking-widest">
-                                <tr>
-                                  <th className="pb-2">PID</th>
-                                  <th className="pb-2">NAME</th>
-                                  <th className="pb-2 text-right">CPU</th>
-                                  <th className="pb-2 text-right">MEM</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(selectedAgent.processes || []).map((p, idx) => (
-                                  <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                                    <td className="py-1.5 text-white/40">{p.pid}</td>
-                                    <td className="py-1.5 text-white/80 group-hover:text-primary transition-colors truncate max-w-[100px]">{p.name}</td>
-                                    <td className="py-1.5 text-right text-primary">{p.cpu || 0}%</td>
-                                    <td className="py-1.5 text-right text-white/60">{p.mem ? p.mem.toFixed(1) : 0}MB</td>
-                                  </tr>
-                                ))}
-                                {(!selectedAgent.processes || selectedAgent.processes.length === 0) && (
-                                  <tr>
-                                    <td colSpan={4} className="py-8 text-center text-white/20 uppercase text-[9px] italic">Waiting for telemetry...</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
+                            <div className="space-y-2">
+                              {skills.map(skill => {
+                                const isAssigned = (selectedAgent.skillIds || []).includes(skill.id);
+                                return (
+                                  <button 
+                                    key={skill.id}
+                                    onClick={() => toggleSkillForAgent(selectedAgent.id, skill.id)}
+                                    className={cn(
+                                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all group",
+                                      isAssigned ? "bg-primary/20 border-primary shadow-[0_0_15px_rgba(212,255,0,0.1)]" : "bg-white/5 border-white/10 hover:border-white/20"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn("w-2 h-2 rounded-full", isAssigned ? "bg-primary animate-pulse shadow-[0_0_5px_#d4ff00]" : "bg-white/10")} />
+                                      <div className="text-left">
+                                        <div className={cn("text-[10px] font-black uppercase tracking-tight", isAssigned ? "text-white" : "text-white/40 group-hover:text-white/60")}>
+                                          {skill.name}
+                                        </div>
+                                        <div className="text-[8px] text-white/20 font-mono italic truncate w-32">{skill.category}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-[8px] font-mono text-white/10 uppercase">{isAssigned ? 'Linked' : 'Not_Synced'}</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="h-40 glass-card p-4 font-mono text-[11px] overflow-y-auto custom-scrollbar bg-black/40 border border-white/5">
+                             <div className="flex items-center justify-between mb-2 pb-1 border-b border-white/5">
+                               <h4 className="text-[10px] text-white/30 font-black uppercase tracking-widest">Loadout_OS</h4>
+                             </div>
+                             <div className="flex flex-wrap gap-2 py-2">
+                               {(selectedAgent.skillIds || []).length > 0 ? (
+                                 selectedAgent.skillIds?.map(sid => {
+                                   const sk = skills.find(s => s.id === sid);
+                                   return sk ? (
+                                      <span key={sid} className="px-2 py-1 bg-primary/10 border border-primary/30 text-primary text-[8px] font-black uppercase rounded">
+                                        {sk.name}
+                                      </span>
+                                   ) : null;
+                                 })
+                               ) : (
+                                  <div className="text-[8px] text-white/20 italic p-2 border border-dashed border-white/5 rounded w-full text-center">No skills assigned to node.</div>
+                               )}
+                             </div>
                           </div>
                         </div>
 
@@ -514,21 +612,91 @@ export const AgentControllerPanel: React.FC = () => {
                               <span className="text-[8px] text-white/20 uppercase tracking-widest italic leading-none">Last 15 Operations</span>
                             </div>
                             <AnimatePresence initial={false}>
-                              {[...commands].reverse().map((cmd) => (
-                                <motion.div key={cmd.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1 mb-3">
-                                  <div className="flex items-center justify-between">
-                                    <span className={cn(
-                                      "text-[10px] font-bold",
-                                      cmd.status === 'completed' ? "text-primary" : 
-                                      cmd.status === 'failed' ? "text-red-400" : "text-neon-blue"
-                                    )}>Node:{selectedAgentId.substring(0,4)}@nyx:{'>'} {cmd.cmd}</span>
-                                    <span className="text-white/20 text-[8px] uppercase">{new Date(cmd.createdAt).toLocaleTimeString()}</span>
-                                  </div>
-                                  {cmd.status === 'executing' && <div className="text-neon-blue animate-pulse pl-4 uppercase text-[8px]">Executing_Sequence...</div>}
-                                  {cmd.result && <pre className="text-white/40 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-white/10 ml-1">{cmd.result}</pre>}
-                                  {cmd.error && <pre className="text-red-500/60 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-red-500/20 ml-1 italic">{cmd.error}</pre>}
-                                </motion.div>
-                              ))}
+                              {[...commands].reverse().map((cmd) => {
+                                const isExpanded = expandedCmds.includes(cmd.id);
+                                const hasResult = !!cmd.result;
+                                const hasError = !!cmd.error;
+                                const resultsTooLong = (cmd.result?.length || 0) > 150 || (cmd.error?.length || 0) > 150;
+
+                                return (
+                                  <motion.div 
+                                    key={cmd.id} 
+                                    initial={{ opacity: 0, y: 10 }} 
+                                    animate={{ opacity: 1, y: 0 }} 
+                                    className="space-y-1 mb-4 group"
+                                  >
+                                    <div 
+                                      className="flex items-center justify-between cursor-pointer hover:bg-white/5 p-1 -mx-1 rounded transition-colors"
+                                      onClick={() => resultsTooLong && toggleCmdExpansion(cmd.id)}
+                                    >
+                                      <span className={cn(
+                                        "text-[10px] font-bold flex items-center gap-2",
+                                        cmd.status === 'completed' ? "text-primary" : 
+                                        cmd.status === 'failed' ? "text-red-400" : "text-neon-blue"
+                                      )}>
+                                        {resultsTooLong && (
+                                          <ChevronRight 
+                                            size={10} 
+                                            className={cn("transition-transform", isExpanded ? "rotate-90" : "")} 
+                                          />
+                                        )}
+                                        Node:{selectedAgentId.substring(0,4)}@nyx:{'>'} {cmd.cmd}
+                                      </span>
+                                      <span className="text-white/20 text-[8px] uppercase">{new Date(cmd.createdAt).toLocaleTimeString()}</span>
+                                    </div>
+                                    
+                                    {cmd.status === 'executing' && (
+                                      <div className="text-neon-blue animate-pulse pl-4 uppercase text-[8px] flex items-center gap-2">
+                                        <Activity size={8} /> Executing_Sequence...
+                                      </div>
+                                    )}
+
+                                    {hasResult && (
+                                      <div className="relative group/output">
+                                        <pre className={cn(
+                                          "text-white/40 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-white/10 ml-1 font-mono",
+                                          !isExpanded && resultsTooLong ? "max-h-12 overflow-hidden opacity-100" : "max-h-none"
+                                        )}>
+                                          {cmd.result}
+                                        </pre>
+                                        {!isExpanded && resultsTooLong && (
+                                          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                                        )}
+                                        {resultsTooLong && (
+                                          <button 
+                                            onClick={() => toggleCmdExpansion(cmd.id)}
+                                            className="text-[8px] text-primary/60 hover:text-primary font-black uppercase tracking-widest pl-4 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            {isExpanded ? '[ COLLAPSE ]' : '[ VIEW_FULL_STDOUT ]'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {hasError && (
+                                      <div className="relative group/output">
+                                        <pre className={cn(
+                                          "text-red-500/60 pl-4 whitespace-pre-wrap leading-tight text-[10px] border-l border-red-500/20 ml-1 italic font-mono bg-red-500/5",
+                                          !isExpanded && resultsTooLong ? "max-h-12 overflow-hidden" : "max-h-none"
+                                        )}>
+                                          {cmd.error}
+                                        </pre>
+                                        {!isExpanded && resultsTooLong && (
+                                          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-red-500/5 to-transparent pointer-events-none" />
+                                        )}
+                                        {resultsTooLong && (
+                                          <button 
+                                            onClick={() => toggleCmdExpansion(cmd.id)}
+                                            className="text-[8px] text-red-500/80 hover:text-red-400 font-black uppercase tracking-widest pl-4 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            {isExpanded ? '[ COLLAPSE ]' : '[ VIEW_FULL_STDERR ]'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                );
+                              })}
                               {commands.length === 0 && (
                                 <div className="h-full flex items-center justify-center text-white/20 uppercase text-[9px] italic">No activity logs recorded</div>
                               )}
@@ -594,21 +762,34 @@ export const AgentControllerPanel: React.FC = () => {
               exit={{ opacity: 0, x: -20 }}
               className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto custom-scrollbar"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-black italic tracking-tighter text-white">MISSION_CONTROL</h2>
-                  <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest font-mono">Autonomous Orchestration Layer</p>
+              <div className="flex items-center justify-between bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-[0_0_20px_rgba(212,255,0,0.15)]">
+                    <Target size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase">Neural_Tactics</h2>
+                    <p className="text-[10px] text-white/40 mt-1 uppercase tracking-[0.3em] font-mono leading-none">Mission Control // Autonomous Layer</p>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="DESIGN_GOAL..."
-                    value={newMissionGoal}
-                    onChange={(e) => setNewMissionGoal(e.target.value)}
-                    className="bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-[10px] font-mono w-64 focus:border-primary/50"
-                  />
-                  <button onClick={planMission} className="p-2 bg-primary text-black rounded-lg font-black text-[10px] uppercase hover:scale-105 transition-all">
-                    Plan
+                <div className="flex gap-3">
+                  <div className="relative group">
+                    <Sparkles size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary opacity-40 group-focus-within:opacity-100 group-focus-within:animate-pulse transition-all pointer-events-none" />
+                    <input 
+                      type="text" 
+                      placeholder="ENTER_OBJECTIVE_PROMPT..."
+                      value={newMissionGoal}
+                      onChange={(e) => setNewMissionGoal(e.target.value)}
+                      className="bg-black/80 border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-[10px] font-mono w-80 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
+                    />
+                  </div>
+                  <button 
+                    onClick={generateMissionWithAI} 
+                    disabled={isPlanningMission || !newMissionGoal.trim()}
+                    className="px-6 bg-primary text-black rounded-2xl font-black text-[10px] uppercase hover:scale-105 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-[0_0_20px_rgba(212,255,0,0.2)]"
+                  >
+                    {isPlanningMission ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
+                    Deploy_AI_Planner
                   </button>
                 </div>
               </div>
@@ -782,36 +963,51 @@ export const AgentControllerPanel: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-black italic tracking-tighter text-white">CAPABILITY_VAULT</h2>
-                  <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest font-mono">Modular Functions // Evolutionary Core</p>
+                  <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase">Capability_Vault</h2>
+                  <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest font-mono italic">Repository: NEURAL_LOGIC // SKILL_SCRIPTS</p>
                 </div>
                 <button 
-                  onClick={() => addSkill({
-                    name: 'New_Module',
-                    description: 'Custom autonomous function.',
-                    code: '// Node.js code',
-                    category: 'automation'
-                  })}
-                  className="px-3 py-1.5 bg-neon-blue text-black rounded-lg font-black text-[10px] uppercase hover:scale-105 transition-all"
+                  onClick={() => {
+                    const newId = Math.random().toString(36).substr(2, 9);
+                    addSkill({ 
+                      name: `SKILL_${newId.toUpperCase()}`, 
+                      description: 'Define tactical logic here...', 
+                      code: '// logic://node.execute\n\nmodule.exports = async (ctx) => {\n  // skill logic\n};',
+                      category: 'system'
+                    });
+                  }}
+                  className="px-6 py-2.5 bg-primary text-black rounded-xl font-black text-[10px] uppercase hover:scale-105 transition-all shadow-[0_0_20px_rgba(207,248,12,0.3)] flex items-center gap-2"
                 >
-                  <Plus size={14} className="inline mr-1" /> Skill
+                  <Plus size={16} /> New_Capability
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {skills.filter(s => {
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {(skills || []).filter(s => {
                   const query = (searchQuery || '').toLowerCase();
                   return s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query);
                 }).map((skill) => {
                   const isEditing = editingSkillId === skill.id;
                   return (
-                    <div key={skill.id} className={cn(
-                      "glass-card p-4 group hover:border-primary/20 transition-all flex flex-col gap-3",
-                      isEditing && "border-primary/40 bg-primary/5"
-                    )}>
-                      <div className="flex items-center justify-between">
-                        <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-primary">
-                          {isEditing ? <Code size={14} /> : <Zap size={14} />}
+                    <div 
+                      key={skill.id} 
+                      className={cn(
+                        "glass-card bg-black/40 border transition-all flex flex-col overflow-hidden group",
+                        isEditing ? "col-span-full ring-1 ring-primary/50 bg-black/80 p-8" : "p-6 border-white/5 hover:border-primary/30"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                            isEditing ? "bg-primary text-black" : "bg-white/5 text-white/40 group-hover:text-primary"
+                          )}>
+                            <Code size={20} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-white/20 uppercase font-black tracking-widest">Type: {skill.category}</span>
+                            <span className="text-[10px] font-black text-white/40 uppercase font-mono">ID: {skill.id.substring(0,6)}</span>
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           {!isEditing && (
@@ -820,78 +1016,115 @@ export const AgentControllerPanel: React.FC = () => {
                                 setEditingSkillId(skill.id);
                                 setEditForm({ description: skill.description, code: skill.code });
                               }}
-                              className="text-white/20 hover:text-primary transition-colors"
-                              title="Edit Skill"
+                              className="p-2 bg-white/5 hover:bg-primary/20 text-white/40 hover:text-primary rounded-lg transition-all"
+                              title="Edit Logic"
                             >
-                              <Wrench size={14} />
+                              <Wrench size={16} />
                             </button>
                           )}
-                          <button onClick={() => deleteSkill(skill.id)} className="text-white/20 hover:text-neon-pink"><Trash2 size={14} /></button>
+                          <button onClick={() => deleteSkill(skill.id)} className="p-2 bg-white/5 hover:bg-neon-pink/20 text-white/20 hover:text-neon-pink rounded-lg transition-all">
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
 
                       {isEditing ? (
-                        <div className="space-y-3">
-                          <div>
-                            <h3 className="font-bold text-[11px] uppercase text-white tracking-widest mb-1">{skill.name}</h3>
-                            <label className="text-[8px] text-white/40 uppercase font-black block mb-1">Description</label>
-                            <input 
-                              type="text"
-                              className="w-full bg-black/40 border border-white/10 rounded p-1.5 text-[10px] text-white focus:border-primary/50 outline-none"
-                              value={editForm.description}
-                              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                            />
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                          <div className="lg:col-span-1 space-y-6">
+                            <div className="space-y-4">
+                              <h3 className="text-xl font-black italic tracking-tighter text-white uppercase">{skill.name}</h3>
+                              <div className="space-y-1.5">
+                                <label className="text-[9px] text-white/30 uppercase font-black tracking-widest pl-1">Mission_Scope</label>
+                                <input 
+                                  type="text"
+                                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:border-primary/50 outline-none font-mono"
+                                  value={editForm.description}
+                                  onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                                />
+                              </div>
+                              <div className="p-4 bg-primary/5 border border-primary/10 rounded-2xl">
+                                <div className="flex items-center gap-2 mb-2 text-primary">
+                                  <Sparkles size={12} />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">AI_Insights</span>
+                                </div>
+                                <p className="text-[10px] text-white/40 italic leading-relaxed">
+                                  Evolution cycle: {skill.evolutionCount || 0}. Last improved via Neural Engine {skill.evolvedFrom ? 'successfully' : 'pending'}.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-3 pt-4">
+                              <button 
+                                onClick={() => {
+                                  updateSkill(skill.id, { 
+                                    description: editForm.description, 
+                                    code: editForm.code 
+                                  });
+                                  setEditingSkillId(null);
+                                }}
+                                className="w-full py-4 bg-primary text-black rounded-xl font-black text-xs uppercase hover:opacity-80 transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(212,255,0,0.2)] active:scale-95"
+                              >
+                                <Save size={16} /> Save_Logic_Uplink
+                              </button>
+                              <button 
+                                onClick={() => evolveSkill(skill.id)}
+                                disabled={isEvolvingSkill === skill.id}
+                                className="w-full py-4 bg-white/5 border border-white/10 text-white/60 hover:text-white rounded-xl font-black text-xs uppercase transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                              >
+                                {isEvolvingSkill === skill.id ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                Initiate_Evolution
+                              </button>
+                              <button 
+                                onClick={() => setEditingSkillId(null)}
+                                className="w-full py-3 text-[10px] text-white/20 font-black uppercase hover:text-white transition-colors"
+                              >
+                                [ CANCEL_ACTION ]
+                              </button>
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-[8px] text-white/40 uppercase font-black block mb-1">Logic_Payload</label>
+                          <div className="lg:col-span-2 relative flex flex-col min-h-[400px]">
+                            <div className="absolute top-4 right-4 z-10 flex gap-2">
+                              <div className="px-2 py-1 bg-black rounded text-[8px] text-white/30 font-mono border border-white/5 uppercase">Language: Node.js</div>
+                              <div className="px-2 py-1 bg-black rounded text-[8px] text-primary font-mono border border-primary/20 uppercase shadow-[0_0_10px_rgba(212,255,0,0.1)]">Read_Only: FALSE</div>
+                            </div>
                             <textarea 
-                              className="w-full bg-black/40 border border-white/10 rounded p-1.5 text-[10px] font-mono text-white h-32 focus:border-primary/50 outline-none resize-none custom-scrollbar"
+                              className="w-full flex-1 bg-black border border-white/5 rounded-2xl p-6 text-xs font-mono text-primary focus:border-primary/50 outline-none resize-none custom-scrollbar leading-relaxed shadow-inner"
+                              spellCheck="false"
                               value={editForm.code}
                               onChange={e => setEditForm({ ...editForm, code: e.target.value })}
                             />
                           </div>
-                          <div className="flex gap-2 mt-2">
-                            <button 
-                              onClick={() => {
-                                updateSkill(skill.id, { 
-                                  description: editForm.description, 
-                                  code: editForm.code 
-                                });
-                                setEditingSkillId(null);
-                              }}
-                              className="flex-1 py-1.5 bg-primary text-black rounded font-black text-[10px] uppercase hover:opacity-80 transition-all flex items-center justify-center gap-2"
-                            >
-                              <Save size={12} /> Save
-                            </button>
-                            <button 
-                              onClick={() => setEditingSkillId(null)}
-                              className="px-3 py-1.5 bg-white/5 text-white/40 rounded font-black text-[10px] uppercase hover:bg-white/10 transition-all"
-                            >
-                              Cancel
-                            </button>
-                          </div>
                         </div>
                       ) : (
                         <>
-                          <div>
-                            <h3 className="font-bold text-[11px] uppercase text-white tracking-widest">{skill.name}</h3>
-                            <p className="text-[9px] text-white/40 font-mono italic">{skill.description}</p>
-                            {skill.code && (
-                              <div className="mt-2 p-2 bg-black/40 rounded border border-white/5">
-                                <code className="text-[8px] text-white/20 font-mono block truncate">{skill.code}</code>
-                              </div>
-                            )}
+                          <div className="mb-6">
+                            <h3 className="font-black text-sm uppercase text-white tracking-widest mb-2 group-hover:text-primary transition-colors">{skill.name}</h3>
+                            <p className="text-[10px] text-white/40 font-mono italic leading-relaxed h-12 overflow-hidden line-clamp-3">{skill.description}</p>
                           </div>
-                          <div className="mt-auto flex items-center justify-between text-[8px] font-black italic tracking-widest uppercase text-primary/40">
+                          
+                          <div className="bg-black/60 rounded-2xl border border-white/5 p-4 mb-6 relative group/code overflow-hidden">
+                             <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover/code:bg-primary transition-colors" />
+                             <code className="text-[9px] text-white/20 font-mono block whitespace-pre overflow-hidden">
+                                {skill.code.substring(0, 120)}...
+                             </code>
+                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-center pb-2 opacity-0 group-hover/code:opacity-100 transition-opacity">
+                                <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em] animate-pulse">View_Full_Payload</span>
+                             </div>
+                          </div>
+
+                          <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
+                            <div className="flex items-center gap-2">
+                               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                               <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Evo_Tier_{skill.evolutionCount || 0}</span>
+                            </div>
                             <button 
-                              onClick={() => evolveSkill(skill.id)}
-                              disabled={isEvolvingSkill === skill.id}
-                              className="flex items-center gap-1 hover:text-primary transition-colors disabled:opacity-50"
+                              onClick={() => {
+                                setEditingSkillId(skill.id);
+                                setEditForm({ description: skill.description, code: skill.code });
+                              }}
+                              className="text-[9px] font-black text-white px-4 py-2 bg-white/5 hover:bg-primary hover:text-black rounded-lg transition-all uppercase tracking-widest"
                             >
-                              {isEvolvingSkill === skill.id ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                              EVOLVE
+                              Open_Logic
                             </button>
-                            <ChevronRight size={10} />
                           </div>
                         </>
                       )}

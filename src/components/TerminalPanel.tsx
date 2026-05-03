@@ -1,16 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal as TerminalIcon, ChevronRight, Play, Trash2 } from 'lucide-react';
+import { Terminal as TerminalIcon, ChevronRight, Play, Trash2, Activity, Globe, Wifi } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { AgentCommand } from '../types';
 
 export const TerminalPanel: React.FC = () => {
-  const { widgets, logs, isCarMode, toggleCarMode, addLog, shortcuts, addShortcut, removeShortcut, files, sendCommand, agents } = useDashboard();
-  const [history, setHistory] = useState<string[]>(['OmniDash Terminal v1.0.0', 'Type "help" for a list of commands.']);
+  const { widgets, logs, isCarMode, toggleCarMode, addLog, shortcuts, addShortcut, removeShortcut, files, sendCommand, agents, user } = useDashboard();
+  const [history, setHistory] = useState<string[]>(['OmniDash Terminal v1.1.0', 'Type "help" for a list of commands.']);
   const [input, setInput] = useState('');
+  const [cmdHistory, setCmdHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [connectedAgentId, setConnectedAgentId] = useState<string | null>(null);
+  const [isLiveMode, setIsLiveMode] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [newShortcutCmd, setNewShortcutCmd] = useState('');
   const [newShortcutScriptId, setNewShortcutScriptId] = useState('');
+  const [editingShortcut, setEditingShortcut] = useState<string | null>(null);
+
+  const modules = [
+    { id: 'dashboard', label: 'Main', desc: 'System status' },
+    { id: 'nodes', label: 'Nodes', desc: 'Agent management' },
+    { id: 'missions', label: 'Tactical', desc: 'Mission control' },
+    { id: 'scripts', label: 'Scripts', desc: 'Code repository' },
+  ];
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -18,30 +33,75 @@ export const TerminalPanel: React.FC = () => {
     }
   }, [history]);
 
+  // Handle live logs
+  useEffect(() => {
+    if (isLiveMode && logs.length > 0) {
+      const lastLog = logs[0];
+      setHistory(prev => {
+        // Avoid duplicate log entries if we just added them manually
+        const lastEntry = prev[prev.length - 1];
+        if (lastEntry && lastEntry.includes(lastLog.details)) return prev;
+        
+        return [...prev, `[LOG] ${lastLog.action}: ${lastLog.details}`].slice(-100);
+      });
+    }
+  }, [logs, isLiveMode]);
+
+  // Handle agent command results if connected
+  useEffect(() => {
+    if (!user || !connectedAgentId) return;
+
+    const commandsColRef = collection(db, 'users', user.uid, 'agents', connectedAgentId, 'commands');
+    const q = query(commandsColRef, orderBy('createdAt', 'desc'), limit(5));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'modified') {
+          const cmd = change.doc.data() as AgentCommand;
+          if (cmd.status === 'completed' || cmd.status === 'failed') {
+            setHistory(prev => {
+              const agent = agents.find(a => a.id === connectedAgentId);
+              const status = cmd.status === 'completed' ? 'SUCCESS' : 'FAILED';
+              const out = cmd.result || cmd.error || 'No output';
+              return [...prev, `[NODE:${agent?.name}] ${cmd.cmd} -> ${status}`, `[OUT] ${out.substring(0, 500)}${out.length > 500 ? '...' : ''}`].slice(-100);
+            });
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [user, connectedAgentId, agents]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length > 0) {
+        const nextIndex = Math.min(historyIndex + 1, cmdHistory.length - 1);
+        setHistoryIndex(nextIndex);
+        setInput(cmdHistory[cmdHistory.length - 1 - nextIndex]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const nextIndex = historyIndex - 1;
+        setHistoryIndex(nextIndex);
+        setInput(cmdHistory[cmdHistory.length - 1 - nextIndex]);
+      } else {
+        setHistoryIndex(-1);
+        setInput('');
+      }
+    }
+  };
+
   const handleCommand = async (cmd: string) => {
     if (!cmd.trim()) return;
+    setCmdHistory(prev => [...prev, cmd]);
+    setHistoryIndex(-1);
     const newHistory = [...history, `> ${cmd}`];
     
-    // Check for agent command shortcut: /agent [id] [cmd]
-    if (cmd.startsWith('/agent ')) {
-      const parts = cmd.split(' ');
-      if (parts.length >= 3) {
-        const agentId = parts[1];
-        const remoteCmd = parts.slice(2).join(' ');
-        const target = agents.find(a => a.id === agentId || a.name.toLowerCase() === agentId.toLowerCase());
-        if (target) {
-          await sendCommand(target.id, remoteCmd);
-          newHistory.push(`Sent remote command [${remoteCmd}] to agent [${target.name}]`);
-        } else {
-          newHistory.push(`Agent [${agentId}] not found.`);
-        }
-      } else {
-        newHistory.push('Usage: /agent [id/name] [command]');
-      }
-      setHistory(newHistory);
-      setInput('');
-      return;
-    }
+    const parts = cmd.split(' ');
+    const baseCmd = parts[0].toLowerCase();
 
     // Check shortcuts first
     const shortcut = shortcuts.find(s => s.command === cmd);
@@ -49,7 +109,6 @@ export const TerminalPanel: React.FC = () => {
       const file = files.find(f => f.id === shortcut.scriptId);
       if (file && file.type === 'script') {
         try {
-          // Pass dashboard tools to the script
           const scriptContext = { addLog, agents, widgets, toggleCarMode, sendCommand };
           const fn = new Function('context', `
             with(context) {
@@ -57,43 +116,111 @@ export const TerminalPanel: React.FC = () => {
             }
           `);
           const result = fn(scriptContext);
-          newHistory.push(`Executed shortcut script: ${file.name}`);
-          if (result) newHistory.push(String(result));
+          newHistory.push(`[EXEC] Executed shortcut script: ${file.name}`);
+          if (result) newHistory.push(`[OUT] ${String(result)}`);
           addLog('EXECUTE_SHORTCUT', `Executed shortcut: ${cmd}`);
         } catch (err: any) {
-          newHistory.push(`Script Error: ${err.message}`);
+          newHistory.push(`[ERR] Script Error: ${err.message}`);
         }
       } else {
-        newHistory.push(`Shortcut script not found or invalid.`);
+        newHistory.push(`[ERR] Shortcut script not found or invalid.`);
       }
       setHistory(newHistory);
       setInput('');
       return;
     }
 
-    switch (cmd.toLowerCase()) {
+    switch (baseCmd) {
       case 'help':
-        newHistory.push('Local commands: help, clear, status, widgets, logs, carmode', 'Remote commands: /agent [id/name] [command]');
+        newHistory.push(
+          'AVAILABLE_COMMANDS:',
+          '  help      - Show this manual',
+          '  clear     - Wipe terminal history',
+          '  status    - View system health & metrics',
+          '  widgets   - List active dashboard components',
+          '  logs      - Print recent subsystem logs',
+          '  agents    - List all active neural nodes',
+          '  live      - Toggle live log monitoring (ON/OFF)',
+          '  connect   - Attach terminal to agent (ex: connect alpha)',
+          '  disconnect- Detach from current agent',
+          '  carmode   - Toggle minimalist UI (focus mode)',
+          '  /agent    - Send remote command (ex: /agent alpha ls)'
+        );
         break;
       case 'clear':
         setHistory([]);
         return;
       case 'status':
-        newHistory.push(`System: Operational`, `Memory: 4.2GB / 16GB`, `CPU: 24%`, `Network: Connected`, `Active Widgets: ${widgets.length}`, `Car Mode: ${isCarMode ? 'ON' : 'OFF'}`);
+        newHistory.push(
+          `SYSTEM_HEALTH: NOMINAL`,
+          `MEMORY_LOAD: ${(Math.random() * 20 + 10).toFixed(1)}GB / 64GB`,
+          `CPU_USAGE: ${Math.floor(Math.random() * 15 + 5)}%`,
+          `UPLINK: ${connectedAgentId ? agents.find(a => a.id === connectedAgentId)?.name?.toUpperCase() : 'CLOUD_ONLY'}`,
+          `CONNECTED_AGENTS: ${agents.length}`,
+          `LIVE_MONITOR: ${isLiveMode ? 'ACTIVE' : 'IDLE'}`
+        );
+        break;
+      case 'live':
+        setIsLiveMode(!isLiveMode);
+        newHistory.push(`Live logs ${!isLiveMode ? 'ENABLED' : 'DISABLED'}.`);
+        break;
+      case 'connect':
+        if (parts[1]) {
+          const target = agents.find(a => a.id === parts[1] || a.name.toLowerCase() === parts[1].toLowerCase());
+          if (target) {
+            setConnectedAgentId(target.id);
+            newHistory.push(`[OK] Attached to node: ${target.name} [${target.id.substring(0,6)}]`);
+          } else {
+            newHistory.push(`[ERR] Node "${parts[1]}" not found.`);
+          }
+        } else {
+          newHistory.push('Usage: connect [agentName/id]');
+        }
+        break;
+      case 'disconnect':
+        setConnectedAgentId(null);
+        newHistory.push('[OK] Detached from remote node. Local mode active.');
+        break;
+      case 'agents':
+        if (agents.length === 0) {
+          newHistory.push('No agents connected to core.');
+        } else {
+          newHistory.push(`NEURAL_NODES_ONLINE (${agents.length}):`, ...agents.map(a => `  - [${a.id.substring(0,6)}] ${a.name} (${a.status})`));
+        }
         break;
       case 'widgets':
-        newHistory.push(`Widgets:\n${widgets.map(w => `- [${w.type}] ${w.title} (${w.isVisible ? 'visible' : 'hidden'})`).join('\n')}`);
+        newHistory.push(`SUBSYSTEM_WIDGETS:\n${widgets.map(w => `  ${w.isVisible ? '●' : '○'} [${w.type.toUpperCase()}] ${w.title}`).join('\n')}`);
         break;
       case 'logs':
-        newHistory.push(`Recent Logs:\n${logs.slice(0, 5).map(l => `- ${l.action}: ${l.details}`).join('\n')}`);
+        newHistory.push(`RECENT_LOGS:\n${logs.slice(0, 8).map(l => `  [${new Date(l.timestamp).toLocaleTimeString()}] ${l.action}: ${l.details}`).join('\n')}`);
         break;
       case 'carmode':
         toggleCarMode();
-        newHistory.push(`Car Mode toggled to ${!isCarMode ? 'ON' : 'OFF'}`);
-        addLog('TERMINAL_COMMAND', 'Toggled Car Mode via terminal');
+        newHistory.push(`CMD: Toggled Car Mode focus.`);
+        break;
+      case '/agent':
+        if (parts.length >= 3) {
+          const agentId = parts[1];
+          const remoteCmd = parts.slice(2).join(' ');
+          const target = agents.find(a => a.id === agentId || a.name.toLowerCase() === agentId.toLowerCase());
+          if (target) {
+            await sendCommand(target.id, remoteCmd);
+            newHistory.push(`[UPLINK] Sent to ${target.name}: ${remoteCmd}`);
+          } else {
+            newHistory.push(`[ERROR] Agent [${agentId}] not found.`);
+          }
+        } else {
+          newHistory.push('Usage: /agent [id/name] [command]');
+        }
         break;
       default:
-        newHistory.push(`Command not found: ${cmd}`);
+        // If connected to an agent, send command to agent by default?
+        if (connectedAgentId) {
+          await sendCommand(connectedAgentId, cmd);
+          newHistory.push(`[REMOTE_DISPATCH] Sent to ${agents.find(a => a.id === connectedAgentId)?.name}: ${cmd}`);
+        } else {
+          newHistory.push(`[ERR] Unknown sequence: ${cmd}. Type 'help' for local commands.`);
+        }
     }
     
     setHistory(newHistory);
@@ -111,121 +238,204 @@ export const TerminalPanel: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-6xl mx-auto gap-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/20 rounded-lg">
-            <TerminalIcon size={24} className="text-primary" />
+    <div className="h-full flex flex-col p-8 max-w-7xl mx-auto gap-8 overflow-hidden bg-transparent">
+      {/* Header */}
+      <header className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-primary/10 border border-primary/30 rounded-2xl flex items-center justify-center text-primary shadow-[0_0_20px_rgba(207,248,12,0.15)] backdrop-blur-xl">
+            <TerminalIcon size={28} />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight uppercase">System Terminal</h2>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">MONDAYOS-PRO-NYX // ROOT_ACCESS</p>
+            <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white">System Terminal</h2>
+            <p className="text-[10px] text-white/40 uppercase tracking-[0.3em] font-bold">Neural_Link_V2 // SECURE_SHELL</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="w-2 h-2 rounded-full bg-neon-pink" />
-          <div className="w-2 h-2 rounded-full bg-yellow-500" />
-          <div className="w-2 h-2 rounded-full bg-primary" />
+        <div className="flex gap-1.5 p-2 bg-white/5 rounded-full border border-white/5">
+          <div className="w-2.5 h-2.5 rounded-full bg-neon-pink/50 blur-[1px]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50 blur-[1px]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary/50 blur-[1px]" />
         </div>
-      </div>
+      </header>
 
       <div className="flex gap-6 flex-1 min-h-0">
-        <div className="flex-1 glass-card bg-black/80 font-mono text-xs p-6 overflow-hidden flex flex-col border-white/5">
-          <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 custom-scrollbar mb-4">
-            {history.map((line, i) => (
-              <div key={i} className={cn(
-                "group",
-                line.startsWith('>') ? "text-primary font-bold" : "text-white/80 whitespace-pre-wrap"
-              )}>
-                {!line.startsWith('>') && <span className="text-primary opacity-30 mr-2">[{new Date().toLocaleTimeString([], { hour12: false })}]</span>}
-                {line}
+        <div className="flex-1 glass-card bg-black/90 font-mono text-xs p-6 overflow-hidden flex flex-col border-white/5 relative group">
+          <div className="absolute top-4 right-6 flex items-center gap-4 z-10">
+            {connectedAgentId && (
+              <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-3 py-1 rounded-full text-[9px] text-primary font-black animate-pulse">
+                <Globe size={10} />
+                ATTACHED: {agents.find(a => a.id === connectedAgentId)?.name.toUpperCase()}
               </div>
-            ))}
+            )}
+            <div className={cn(
+              "flex items-center gap-2 border px-3 py-1 rounded-full text-[9px] font-black transition-all",
+              isLiveMode ? "bg-neon-blue/10 border-neon-blue/30 text-neon-blue" : "bg-white/5 border-white/10 text-white/20"
+            )}>
+              <Activity size={10} className={isLiveMode ? "animate-bounce" : ""} />
+              LIVE_FEED: {isLiveMode ? 'ON' : 'OFF'}
+            </div>
           </div>
-          <div className="flex items-center gap-2 border-t border-white/10 pt-4 bg-white/[0.02] -mx-6 -mb-6 p-6">
-            <ChevronRight size={18} className="text-primary" />
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar mb-4 pr-4">
+            {history.map((line, i) => {
+              const isCmd = line.startsWith('>');
+              const isLog = line.startsWith('[LOG]');
+              const isErr = line.startsWith('[ERR]');
+              const isExec = line.startsWith('[EXEC]');
+              const isOut = line.startsWith('[OUT]');
+              const isNode = line.startsWith('[NODE');
+
+              return (
+                <div key={i} className={cn(
+                  "flex gap-3 leading-relaxed",
+                  isCmd ? "text-primary font-bold bg-primary/5 p-1 rounded -ml-1 border-l-2 border-primary" : "text-white/60"
+                )}>
+                  {!isCmd && (
+                    <span className="text-white/10 shrink-0 text-[10px]">
+                      {new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  <span className={cn(
+                    "flex-1",
+                    isLog && "text-neon-blue/70 italic",
+                    isErr && "text-neon-pink font-bold",
+                    isExec && "text-yellow-400/80",
+                    isOut && "text-green-400/60 font-mono pl-4 opacity-100",
+                    isNode && "text-primary/80 font-bold border-l border-primary/20 pl-4"
+                  )}>
+                    {line}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 border-t border-white/5 pt-4 bg-white/[0.01] -mx-6 -mb-6 p-6">
+            <ChevronRight size={18} className="text-primary animate-pulse" />
             <input 
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCommand(input)}
-              className="flex-1 bg-transparent outline-none border-none text-sm font-mono text-white"
-              placeholder="ENTER_COMMAND..."
+              onKeyDown={handleKeyDown}
+              onKeyUp={(e) => e.key === 'Enter' && handleCommand(input)}
+              className="flex-1 bg-transparent outline-none border-none text-sm font-mono text-white placeholder:text-white/10"
+              placeholder="ENTER_SEQUENCE_COMMAND..."
               autoFocus
             />
-            <button 
-              onClick={() => handleCommand(input)}
-              className="bg-primary text-black px-6 py-1.5 rounded font-black text-[10px] tracking-widest uppercase hover:bg-primary/80 transition-all active:scale-95 shadow-[0_0_15px_rgba(207,248,12,0.3)]"
-            >
-              RUN
-            </button>
+            <div className="flex gap-2">
+              <span className="text-[10px] text-white/20 font-mono hidden sm:block">CMD_HISTORY [↑↓]</span>
+              <button 
+                onClick={() => handleCommand(input)}
+                className="bg-primary text-black px-6 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95"
+              >
+                Execute
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Shortcuts Panel */}
-        <div className="w-80 flex flex-col gap-4">
-          <div className="glass-card p-6 flex flex-col h-full border-white/5">
-            <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-primary mb-6">Command Shortcuts</h3>
-            
-            <form onSubmit={handleAddShortcut} className="space-y-3 mb-8">
-              <input 
-                type="text" 
-                placeholder="Command (e.g. sync)"
-                value={newShortcutCmd}
-                onChange={e => setNewShortcutCmd(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-primary/50 transition-colors"
-              />
-              <select 
-                value={newShortcutScriptId}
-                onChange={e => setNewShortcutScriptId(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-primary/50 transition-colors appearance-none"
+        <div className="w-80 flex flex-col gap-6">
+          <div className="glass-card p-6 flex flex-col h-full border-white/5 bg-black/40">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-3 bg-primary rounded-full" />
+                <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-white/80">Command_Aliases</h3>
+              </div>
+              <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('nav-subtab', { detail: 'directory' }))}
+                className="text-[8px] font-black text-primary hover:underline uppercase tracking-widest"
               >
-                <option value="" className="bg-black">Select Script...</option>
-                {files.filter(f => f.type === 'script').map(f => (
-                  <option key={f.id} value={f.id} className="bg-black">{f.name}</option>
-                ))}
-              </select>
+                Repo_OS
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddShortcut} className="space-y-4 mb-8 bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+              <div className="space-y-1.5">
+                <label className="text-[9px] text-white/30 uppercase font-black tracking-widest pl-1">Alias_Token</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. sync_all"
+                  value={newShortcutCmd}
+                  onChange={e => setNewShortcutCmd(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-primary/50 transition-colors font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] text-white/30 uppercase font-black tracking-widest pl-1">Target_Executable</label>
+                <select 
+                  value={newShortcutScriptId}
+                  onChange={e => setNewShortcutScriptId(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-primary/50 transition-colors appearance-none cursor-pointer font-mono"
+                >
+                  <option value="" className="bg-[#0a0a0c]">Select Script...</option>
+                  {files.filter(f => f.type === 'script').map(f => (
+                    <option key={f.id} value={f.id} className="bg-[#0a0a0c]">{f.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <button 
                 type="submit"
                 disabled={!newShortcutCmd || !newShortcutScriptId}
-                className="w-full bg-white/5 border border-white/10 hover:border-primary/50 text-white font-bold py-3 rounded-xl text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all active:scale-95"
+                className="w-full bg-primary text-black font-black py-4 rounded-xl text-[10px] uppercase tracking-[0.2em] disabled:opacity-20 transition-all active:scale-95 shadow-[0_0_20px_rgba(207,248,12,0.2)]"
               >
-                Add Shortcut
+                Map_Command
               </button>
             </form>
 
             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
               {shortcuts.map(s => {
                 const file = files.find(f => f.id === s.scriptId);
+                const isActive = editingShortcut === s.command;
                 return (
-                  <div key={s.command} className="glass-card bg-white/[0.02] p-4 rounded-xl flex items-center justify-between group hover:bg-white/5 transition-all cursor-pointer">
-                    <div>
-                      <div className="text-xs font-bold text-primary">{s.command}</div>
-                      <div className="text-[10px] text-white/40 truncate w-32 uppercase tracking-tighter">{file?.name || 'Unknown Script'}</div>
-                    </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => handleCommand(s.command)}
-                        className="p-1.5 hover:bg-primary/20 text-primary rounded-lg transition-all"
-                      >
-                        <Play size={14} />
-                      </button>
-                      <button 
-                        onClick={() => removeShortcut(s.command)}
-                        className="p-1.5 hover:bg-neon-pink/20 text-neon-pink rounded-lg transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                  <div 
+                    key={s.command} 
+                    className={cn(
+                      "group glass-card bg-white/[0.01] p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden",
+                      isActive ? "border-primary/50 bg-primary/5" : "border-white/5 hover:border-primary/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-black text-white tracking-tight flex items-center gap-2">
+                          <span className="text-primary opacity-50">{'>'}</span>
+                          {s.command.toUpperCase()}
+                        </div>
+                        <div className="text-[9px] text-white/30 truncate w-full uppercase font-mono mt-1 italic">
+                          exec:: {file?.name || 'ERR_LINK_BROKEN'}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0 ml-4">
+                        <button 
+                          onClick={() => handleCommand(s.command)}
+                          className="p-2.5 bg-white/5 hover:bg-primary text-white hover:text-black rounded-xl transition-all"
+                          title="Run Sequence"
+                        >
+                          <Play size={12} fill="currentColor" />
+                        </button>
+                        <button 
+                          onClick={() => removeShortcut(s.command)}
+                          className="p-2.5 bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500 rounded-xl transition-all"
+                          title="Unmap Command"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
               {shortcuts.length === 0 && (
-                <div className="text-center text-white/20 text-[10px] font-bold uppercase tracking-widest mt-8">No shortcuts defined</div>
+                <div className="h-40 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl p-6 text-center opacity-40">
+                  <Activity size={24} className="mb-3 text-white/20 animate-pulse" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">System awaiting custom instruction sets.</p>
+                </div>
               )}
             </div>
-            <div className="mt-6 pt-6 border-t border-white/5">
-               <div className="text-[9px] text-on-surface-variant uppercase tracking-widest">System Health: Nominal</div>
+
+            <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
+               <div className="text-[9px] text-white/20 uppercase tracking-widest font-black">Link_Status: <span className="text-primary">Secured</span></div>
+               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             </div>
           </div>
         </div>

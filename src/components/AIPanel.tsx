@@ -19,6 +19,7 @@ export const AIPanel: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
+  const [isFetchingAudio, setIsFetchingAudio] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
   const [memoryInput, setMemoryInput] = useState(aiContext);
   const [mode, setMode] = useState<'chat' | 'image' | 'voice'>('chat');
@@ -27,6 +28,7 @@ export const AIPanel: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const chatRef = useRef<any>(null);
 
   useEffect(() => {
@@ -36,10 +38,27 @@ export const AIPanel: React.FC = () => {
   }, [messages, showMemory]);
 
   const handleTTS = async (text: string, index: number) => {
-    // TTS still needs direct Gemini for now or a service method
-    // I'll keep it as is but using the process key if available
-    if (isSpeaking !== null) return;
+    // If clicking the currently playing audio, stop it
+    if (isSpeaking === index) {
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current.disconnect();
+        sourceRef.current = null;
+      }
+      setIsSpeaking(null);
+      setIsFetchingAudio(false);
+      return;
+    }
+
+    // Stop any previously playing audio
+    if (sourceRef.current) {
+      sourceRef.current.stop();
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+
     setIsSpeaking(index);
+    setIsFetchingAudio(true);
 
     try {
       let envKeyTts = '';
@@ -77,16 +96,25 @@ export const AIPanel: React.FC = () => {
 
         const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
         const source = audioContextRef.current.createBufferSource();
+        sourceRef.current = source;
         source.buffer = audioBuffer;
         source.connect(audioContextRef.current.destination);
-        source.onended = () => setIsSpeaking(null);
+        source.onended = () => {
+          if (sourceRef.current === source) {
+            setIsSpeaking(null);
+            sourceRef.current = null;
+          }
+        };
+        setIsFetchingAudio(false);
         source.start();
       } else {
         setIsSpeaking(null);
+        setIsFetchingAudio(false);
       }
     } catch (error) {
       console.error("TTS Error:", error);
       setIsSpeaking(null);
+      setIsFetchingAudio(false);
     }
   };
 
@@ -269,12 +297,21 @@ export const AIPanel: React.FC = () => {
             <textarea
               value={memoryInput}
               onChange={(e) => setMemoryInput(e.target.value)}
+              maxLength={5000}
               className="flex-1 bg-black/50 border border-white/10 rounded-2xl p-6 text-sm font-mono text-white/80 focus:outline-none focus:border-primary/50 resize-none custom-scrollbar leading-relaxed"
               placeholder="You are Nyx AI..."
             />
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowMemory(false)} className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 transition-all">Cancel</button>
-              <button onClick={saveMemory} className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary text-black transition-all active:scale-95 shadow-[0_0_15px_rgba(207,248,12,0.3)]">Save Memory</button>
+            <div className="flex justify-between items-center mt-6">
+              <div className={cn(
+                "text-[10px] font-mono uppercase tracking-widest",
+                memoryInput.length >= 5000 ? "text-neon-pink" : "text-white/40"
+              )}>
+                {memoryInput.length} <span className="opacity-50">/ 5000 chars</span>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowMemory(false)} className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 transition-all">Cancel</button>
+                <button onClick={saveMemory} className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary text-black transition-all active:scale-95 shadow-[0_0_15px_rgba(207,248,12,0.3)]">Save Memory</button>
+              </div>
             </div>
           </div>
         )}
@@ -365,10 +402,22 @@ export const AIPanel: React.FC = () => {
                           onClick={() => handleTTS(msg.content, i)}
                           className={cn(
                             "absolute -right-12 top-0 p-2.5 rounded-xl transition-all",
-                            isSpeaking === i ? "text-primary animate-pulse bg-primary/10" : "text-white/10 hover:text-primary hover:bg-white/5"
+                            isSpeaking === i ? "text-primary bg-primary/10" : "text-white/10 hover:text-primary hover:bg-white/5"
                           )}
                         >
-                          <Volume2 size={18} />
+                          {isSpeaking === i ? (
+                            isFetchingAudio ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <div className="flex items-center justify-center gap-[2px] h-[18px] w-[18px]">
+                                <span className="w-[3px] h-3 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                                <span className="w-[3px] h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                                <span className="w-[3px] h-2 bg-primary rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                              </div>
+                            )
+                          ) : (
+                            <Volume2 size={18} />
+                          )}
                         </button>
                       )}
                     </>

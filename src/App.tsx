@@ -14,9 +14,12 @@ import { AgentTreeView } from './components/AgentTreeView';
 import { DevDirectory } from './components/DevDirectory';
 import { RemoteDesk } from './components/RemoteDesk';
 import { AuditSystem } from './components/AuditSystem';
+import { WizardInstallManager } from './components/WizardInstallManager';
+import { BlueprintExplorer } from './components/BlueprintExplorer';
 import { AutopilotController } from './components/AutopilotController';
 import { GuidanceSystem } from './components/GuidanceSystem';
 import { FloatingAssistant } from './components/FloatingAssistant';
+import { OBDScan } from './components/OBDScan';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutGrid, 
@@ -32,7 +35,7 @@ import {
 import { cn } from './lib/utils';
 
 const DashboardContent: React.FC = () => {
-  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents, addNotification, theme, missions } = useDashboard();
+  const { widgets, isCarMode, viewMode, setViewMode, logs, rollback, searchQuery, isAuthReady, addWidget, agents, addNotification, theme, missions, obd } = useDashboard();
   const [activeTab, setActiveTab] = React.useState('home');
   const [agentSubTab, setAgentSubTab] = React.useState('list');
 
@@ -303,18 +306,28 @@ const DashboardContent: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-8">
                           <div>
-                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">System Load</div>
+                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">
+                              {obd?.pids.find(p => p.code === '0104')?.name || 'Engine Load'}
+                            </div>
                             <div className="text-4xl font-black italic tracking-tighter">
-                              {Math.floor(Math.random() * 20) + 10}%
+                              {obd?.pids.find(p => p.code === '0104')?.value || '0'}%
                             </div>
                             <div className="w-full h-1 bg-white/10 mt-2 rounded-full overflow-hidden">
-                              <div className="h-full bg-primary w-[25%] shadow-[0_0_10px_#cff80c]" />
+                              <div 
+                                className="h-full bg-primary transition-all duration-300 shadow-[0_0_10px_#cff80c]" 
+                                style={{ width: `${obd?.pids.find(p => p.code === '0104')?.value || 0}%` }}
+                              />
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Uptime</div>
-                            <div className="text-4xl font-black italic tracking-tighter">
-                              {Math.floor(performance.now() / 3600000)}<span className="text-lg ml-1 opacity-50">h</span>
+                            <div className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">
+                              {obd?.pids.find(p => p.code === '0105')?.name || 'Coolant'}
+                            </div>
+                            <div className={cn(
+                              "text-4xl font-black italic tracking-tighter",
+                              Number(obd?.pids.find(p => p.code === '0105')?.value || 0) > 100 ? "text-red-500 animate-pulse" : "text-white"
+                            )}>
+                              {obd?.pids.find(p => p.code === '0105')?.value || '0'}<span className="text-lg ml-1 opacity-50">°C</span>
                             </div>
                           </div>
                         </div>
@@ -325,15 +338,26 @@ const DashboardContent: React.FC = () => {
                          <img 
                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY1kufC0qMbXkUOa--qjRwdqi3epYolVeK2PUlUBWRYBy-8r7GtSL6MywDdKgKC8r_WZsxOdiGTvke4hBdIY6pN60F14bBY0svYlMB4dl87TjdRtACF6gh5c6oJdFxh-xzSae_fAbudFUx6X6YUJ4BdojwWmeOsGxwoUbGqo-DijewTNPeR4qpOoSbDFW6mJj6u3CeNrK0y_EsNOpUJmJLzUKt-4F3vxGFuuffywllmTBkWX5jfdFrg7gRnpkF2RrkhRWkUt5RFDc" 
                            alt="Car" 
-                           className="w-full object-contain relative z-10 drop-shadow-[0_20px_50px_rgba(207,248,12,0.3)]"
+                           className={cn(
+                             "w-full object-contain relative z-10 drop-shadow-[0_20px_50px_rgba(207,248,12,0.3)] transition-transform duration-300",
+                             (obd?.pids.find(p => p.code === '010C')?.value as number || 0) > 3000 ? "scale-105" : "scale-100"
+                           )}
                            referrerPolicy="no-referrer"
                          />
                       </div>
 
                       <div className="flex-1 flex flex-col items-end gap-4">
                         <div className="text-right">
-                          <div className="text-7xl font-black italic neon-text">{Math.floor(Math.random() * 5) + 60}</div>
-                          <div className="text-xs text-white/40 uppercase tracking-[0.3em] font-bold">OPS/SEC</div>
+                          <div className="text-7xl font-black italic neon-text">
+                            {obd?.pids.find(p => p.code === '010D')?.value || '0'}
+                          </div>
+                          <div className="text-xs text-white/40 uppercase tracking-[0.3em] font-bold">KM/H</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-black italic text-white/40">
+                             {obd?.pids.find(p => p.code === '010C')?.value || '0'}
+                          </div>
+                          <div className="text-[9px] text-white/20 uppercase tracking-[0.2em] font-bold">RPM</div>
                         </div>
                         <div className="flex gap-2">
                            {[1,2,3,4,5].map(i => (
@@ -498,6 +522,42 @@ const DashboardContent: React.FC = () => {
                 className="h-full"
               >
                 <AuditSystem />
+              </motion.div>
+            )}
+
+            {activeTab === 'installer' && (
+              <motion.div 
+                key="installer"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <WizardInstallManager />
+              </motion.div>
+            )}
+
+            {activeTab === 'blueprint' && (
+              <motion.div 
+                key="blueprint"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <BlueprintExplorer />
+              </motion.div>
+            )}
+
+            {activeTab === 'obdscan' && (
+              <motion.div 
+                key="obdscan"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <OBDScan />
               </motion.div>
             )}
 

@@ -53,6 +53,7 @@ export interface RemoteAgent {
     load?: number[];
   };
   processes?: { pid: number; name: string; cpu: number; mem: number; user: string }[];
+  skillIds?: string[];
   ownerId: string;
   updatedAt?: any;
 }
@@ -151,5 +152,43 @@ export interface AppState {
     autoListen: boolean;
     position?: { x: number; y: number };
   };
+  obd?: {
+    status: OBDConnectionStatus;
+    pids: OBDPID[];
+    dtcs: DTCRecord[];
+    isScanning: boolean;
+    activeSessionId?: string;
+    agentMode: 'assisted' | 'guided' | 'autonomous';
+    missionStatus?: string;
+  };
+}
+
+export interface OBDPID {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  value: number | string;
+  min?: number;
+  max?: number;
+  priority: 'high' | 'medium' | 'low';
+  description: string;
+}
+
+export interface DTCRecord {
+  code: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'active' | 'stored' | 'pending';
+  source: string;
+}
+
+export interface OBDConnectionStatus {
+  connected: boolean;
+  protocol: string;
+  adapter: 'elm327' | 'j2534' | 'stn' | 'none';
+  interface: 'usb' | 'bluetooth' | 'wifi' | 'none';
+  latency: number;
+  voltage: number;
 }
 

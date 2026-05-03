@@ -22,11 +22,16 @@ import {
   Activity,
   Database,
   ClipboardCheck,
-  X
+  Package,
+  Map,
+  ShieldCheck,
+  X,
+  Gauge
 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
 import { AIWave } from './AIWave';
+import { AdminMenu } from './AdminMenu';
 
 interface SidebarProps {
   activeTab: string;
@@ -45,10 +50,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { icon: FileText, label: 'Technical Notes', id: 'notes' },
     { icon: Globe, label: 'External Links', id: 'links' },
     { icon: activityIcon(), label: 'Autopilot', id: 'autopilot', active: isAutopilotActive },
+    { icon: Gauge, label: 'OBD Scan', id: 'obdscan' },
     { icon: Globe, label: 'RemoteDesk', id: 'remote' },
     { icon: ClipboardCheck, label: 'Audit System', id: 'audit' },
     { icon: Database, label: 'Dev Directory', id: 'dev' },
     { icon: Terminal, label: 'Core Terminal', id: 'terminal' },
+    { icon: Map, label: 'System Blueprint', id: 'blueprint' },
+    { icon: Package, label: 'Wizard Builder', id: 'installer' },
     { icon: Settings, label: 'Control Center', id: 'settings' },
     { icon: History, label: 'Event Logs', id: 'logs' },
   ];
@@ -137,6 +145,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export const TopBar: React.FC = () => {
   const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady, notifications, clearNotification, setTutorial } = useDashboard();
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
+  const [isAdminOpen, setIsAdminOpen] = React.useState(false);
   const unreadCount = notifications.length;
 
   const searchItems = [
@@ -147,10 +156,13 @@ export const TopBar: React.FC = () => {
     { icon: FileText, label: 'Technical Notes', id: 'notes', keywords: ['notes', 'documents', 'kb'] },
     { icon: Globe, label: 'External Links', id: 'links', keywords: ['links', 'urls', 'web', 'bookmarks'] },
     { icon: PenTool, label: 'Autopilot', id: 'autopilot', keywords: ['autopilot', 'automation', 'tasks', 'agents'] },
+    { icon: Gauge, label: 'OBD Scanner', id: 'obdscan', keywords: ['obd', 'scan', 'car', 'diagnostics', 'engine', 'dtc', 'elm327', 'vehicle'] },
     { icon: Globe, label: 'RemoteDesk', id: 'remote', keywords: ['remote', 'desktop', 'vnc', 'viewer'] },
     { icon: ClipboardCheck, label: 'Audit System', id: 'audit', keywords: ['audit', 'system', 'check', 'inventory'] },
     { icon: Database, label: 'Dev Directory', id: 'dev', keywords: ['developer', 'directory', 'code', 'snippets'] },
     { icon: Terminal, label: 'Core Terminal', id: 'terminal', keywords: ['terminal', 'cli', 'console', 'commands'] },
+    { icon: Map, label: 'System Blueprint', id: 'blueprint', keywords: ['blueprint', 'map', 'architecture', 'docs', 'structure'] },
+    { icon: Package, label: 'Wizard Builder', id: 'installer', keywords: ['installer', 'wizard', 'setup', 'manager', 'windows', 'build'] },
     { icon: Settings, label: 'Control Center', id: 'settings', keywords: ['config', 'settings', 'options', 'preferences', 'theme', 'account', 'credentials'] },
     { icon: History, label: 'Event Logs', id: 'logs', keywords: ['logs', 'history', 'events', 'actions'] },
   ];
@@ -235,6 +247,25 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        <button 
+          onClick={() => setIsAdminOpen(true)}
+          className="px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
+          title="Admin_Bypass"
+        >
+          <ShieldCheck size={14} />
+          ADMIN
+        </button>
+
+        <AdminMenu isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
+
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('nav-tab', { detail: 'blueprint' }))}
+          className="p-2 text-white/40 hover:text-primary hover:bg-primary/10 rounded-full transition-all active:scale-95"
+          title="Admin_System_Mapping"
+        >
+          <ShieldCheck size={18} />
+        </button>
+
         <div className="relative">
           <button 
             onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
