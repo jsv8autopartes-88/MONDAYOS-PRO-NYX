@@ -26,6 +26,7 @@ export const AdminMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
     { id: 'obdscan', label: 'OBD Diagnostics', icon: Gauge, desc: 'Real-time vehicle telemetry' },
     { id: 'agents', label: 'Neural Agents', icon: Zap, desc: 'Node control and orchestration' },
     { id: 'blueprint', label: 'System Explorer', icon: Database, desc: 'Architecture and data mapping' },
+    { id: 'scripts', label: 'Logic Scripts', icon: Terminal, desc: 'Advanced code IDE and sandbox environment' },
     { id: 'terminal', label: 'Root Console', icon: Terminal, desc: 'Direct CLI access' },
     { id: 'ai', label: 'Neural Chat', icon: MessageSquare, desc: 'AI assistant interface' },
     { id: 'installer', label: 'Unified Setup', icon: Smartphone, desc: 'Bridges and local install' },

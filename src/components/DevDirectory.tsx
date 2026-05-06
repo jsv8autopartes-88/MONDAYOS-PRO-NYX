@@ -40,6 +40,7 @@ import {
 import { cn } from '../lib/utils';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import { NeuralEditor } from './NeuralEditor';
 import 'prismjs/components/prism-markup';
 import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-javascript';
@@ -327,12 +328,30 @@ export const DevDirectory: React.FC<{ onNavigate?: (tab: string) => void }> = ({
   const [search, setSearch] = useState('');
   const [activeDetailTab, setActiveDetailTab] = useState<'summary' | 'code' | 'install' | 'versions' | 'diagnostics'>('summary');
   const [copying, setCopying] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingCode, setEditingCode] = useState('');
 
   useEffect(() => {
     if (selectedModule && activeDetailTab === 'code') {
       Prism.highlightAll();
     }
   }, [selectedModule, activeDetailTab]);
+
+  const handleEdit = () => {
+    if (!selectedModule) return;
+    setEditingCode(selectedModule.fullCode || selectedModule.code);
+    setIsEditorOpen(true);
+  };
+
+  const handleSaveCode = (newCode: string) => {
+    // In a real app, we'd save to Firestore/LocalState
+    // Here we'll just update the local module for this session and log it
+    if (selectedModule) {
+      selectedModule.fullCode = newCode;
+      selectedModule.code = newCode;
+    }
+    setIsEditorOpen(false);
+  };
 
   const filteredModules = APP_MODULES.filter(m => 
     m.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -548,7 +567,10 @@ export const DevDirectory: React.FC<{ onNavigate?: (tab: string) => void }> = ({
                             {copying ? <Check size={14} /> : <Copy size={14} />}
                             {copying ? 'Copiado' : 'Copiar'}
                           </button>
-                          <button className="p-2 rounded-lg text-white/40 hover:text-white transition-all flex items-center gap-2 text-[10px] font-bold uppercase">
+                          <button 
+                            onClick={handleEdit}
+                            className="p-2 rounded-lg text-white/40 hover:text-white transition-all flex items-center gap-2 text-[10px] font-bold uppercase"
+                          >
                             <Edit size={14} />
                             Editar
                           </button>
@@ -688,6 +710,17 @@ export const DevDirectory: React.FC<{ onNavigate?: (tab: string) => void }> = ({
           )}
         </AnimatePresence>
       </div>
+      <AnimatePresence>
+        {isEditorOpen && (
+          <NeuralEditor 
+            fileName={`${selectedModule?.title || 'module'}.tsx`}
+            initialCode={editingCode}
+            initialLanguage="typescript"
+            onSave={handleSaveCode}
+            onClose={() => setIsEditorOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

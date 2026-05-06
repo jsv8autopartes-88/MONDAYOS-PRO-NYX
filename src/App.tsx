@@ -12,6 +12,7 @@ import { FileManagerPanel } from './components/FileManagerPanel';
 import { AgentControllerPanel } from './components/AgentControllerPanel';
 import { AgentTreeView } from './components/AgentTreeView';
 import { DevDirectory } from './components/DevDirectory';
+import { ScriptEditorPanel } from './components/ScriptEditorPanel';
 import { RemoteDesk } from './components/RemoteDesk';
 import { AuditSystem } from './components/AuditSystem';
 import { WizardInstallManager } from './components/WizardInstallManager';
@@ -452,6 +453,18 @@ const DashboardContent: React.FC = () => {
                 className="h-full"
               >
                 <FileManagerPanel />
+              </motion.div>
+            )}
+
+            {activeTab === 'scripts' && (
+              <motion.div 
+                key="scripts"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="h-full"
+              >
+                <ScriptEditorPanel />
               </motion.div>
             )}
 
