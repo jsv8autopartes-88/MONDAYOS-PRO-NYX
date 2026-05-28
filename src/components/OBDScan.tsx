@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -21,7 +22,7 @@ import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
 
 export const OBDScan: React.FC = () => {
-  const { obd, connectOBD, disconnectOBD, scanDTCs, clearDTCs, addLog, setOBDAgentMode } = useDashboard();
+  const { obd, connectOBD, disconnectOBD, scanDTCs, clearDTCs, addLog, setOBDAgentMode, updatePID } = useAppStore();
   const [activeTab, setActiveTab] = useState<'status' | 'diagnostics' | 'metrics' | 'terminal'>('status');
   const [terminalInput, setTerminalInput] = useState('');
   const [terminalHistory, setTerminalHistory] = useState<{cmd: string, resp: string}[]>([
@@ -32,6 +33,48 @@ export const OBDScan: React.FC = () => {
     interface: 'bluetooth' as 'usb' | 'bluetooth' | 'wifi',
     adapter: 'elm327' as 'elm327' | 'j2534'
   });
+
+  // Telemetry fluctuation driver for real-looking interface active status
+  useEffect(() => {
+    if (!obd.status.connected) return;
+
+    const interval = setInterval(() => {
+      // Small random walk for each PID
+      obd.pids.forEach(pid => {
+        let nVal = Number(pid.value);
+        if (pid.id === 'pid1') { // RPM
+          if (nVal === 0) nVal = 1800;
+          nVal += Math.floor(Math.random() * 81) - 40; // -40 to +40
+          if (nVal < 800) nVal = 800;
+          if (nVal > 3500) nVal = 3000;
+        } else if (pid.id === 'pid2') { // Speed
+          if (nVal === 0) nVal = 80;
+          nVal += Math.floor(Math.random() * 5) - 2; // -2 to +2
+          if (nVal < 0) nVal = 0;
+          if (nVal > 140) nVal = 90;
+        } else if (pid.id === 'pid3') { // Coolant temp
+          if (nVal === 0) nVal = 90;
+          nVal += Math.random() > 0.5 ? 0.1 : -0.1;
+          nVal = parseFloat(nVal.toFixed(1));
+          if (nVal < 85) nVal = 85;
+          if (nVal > 98) nVal = 95;
+        } else if (pid.id === 'pid4') { // Throttle
+          if (nVal === 0) nVal = 25;
+          nVal += Math.floor(Math.random() * 3) - 1; // -1 to 1
+          if (nVal < 5) nVal = 5;
+          if (nVal > 60) nVal = 25;
+        } else if (pid.id === 'pid5') { // Load
+          if (nVal === 0) nVal = 35;
+          nVal += Math.floor(Math.random() * 5) - 2; // -2 to 2
+          if (nVal < 10) nVal = 10;
+          if (nVal > 80) nVal = 35;
+        }
+        updatePID(pid.id, nVal);
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [obd.status.connected, obd.pids, updatePID]);
 
   const handleTerminalSend = () => {
     if (!terminalInput.trim()) return;
@@ -234,44 +277,77 @@ export const OBDScan: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4">
-                        <Activity size={16} className="text-primary/20 animate-spin" />
-                      </div>
-                      <h3 className="text-xs font-black text-primary uppercase tracking-widest mb-6">Link Parameters</h3>
-                      <div className="space-y-4">
-                        {[
-                          { label: 'Latency', value: `${obd.status.latency}ms`, status: 'NOMINAL' },
-                          { label: 'Bus Speed', value: '500 kbps', status: 'CAN_HIGH' },
-                          { label: 'CPU Load', value: '1.2%', status: 'IDLE' },
-                          { label: 'Hardware', value: obd.status.adapter.toUpperCase(), status: 'READY' }
-                        ].map((m, i) => (
-                          <div key={i} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
-                            <div>
-                              <div className="text-[8px] text-white/30 uppercase font-bold">{m.label}</div>
-                              <div className="text-xs font-black text-white">{m.value}</div>
-                            </div>
-                            <span className="text-[8px] font-black text-primary/60 px-2 py-0.5 bg-primary/10 rounded uppercase">{m.status}</span>
+                  <div className="grid grid-cols-1 gap-6">
+                    {/* Active Connection Origin Indicator Banner */}
+                    <div className={cn(
+                      "p-4 rounded-2xl border text-xs font-mono flex items-center justify-between",
+                      obd.status.adapter === 'ELM327 NATIVE'
+                        ? "bg-green-500/10 border-green-500/20 text-green-400"
+                        : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                    )}>
+                      <div className="flex items-center gap-3">
+                        {obd.status.adapter === 'ELM327 NATIVE' ? <CheckCircle2 size={16} /> : <Info size={16} />}
+                        <div>
+                          <div className="font-extrabold uppercase tracking-widest text-[10px]">
+                            {obd.status.adapter === 'ELM327 NATIVE' ? 'DATABASE ENGINE LINK: NATIVE AGENT DIRECT' : 'EMULATION ENGAGED: BROWSER DEMO MODE'}
                           </div>
-                        ))}
+                          <div className="text-[9px] opacity-60">
+                            {obd.status.adapter === 'ELM327 NATIVE' 
+                              ? 'Telemetry streaming live from your native host daemon through Firestore database.'
+                              : 'No local OBD station was detected. Emulating vehicle telemetries with standard sine noise.'}
+                          </div>
+                        </div>
                       </div>
+                      
+                      {obd.status.adapter !== 'ELM327 NATIVE' && (
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent('nav-tab', { detail: 'installer' }))}
+                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded text-[9px] font-black uppercase tracking-wider transition-colors"
+                        >
+                          Enlazar Agente
+                        </button>
+                      )}
                     </div>
 
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10 flex flex-col justify-between">
-                       <div>
-                         <h3 className="text-xs font-black text-white uppercase tracking-widest mb-2">Security Verification</h3>
-                         <p className="text-[10px] text-white/40 font-mono leading-relaxed">
-                           Handshake signed. Every PID request is verified against the ECU access mask to prevent unauthorized command injection.
-                         </p>
-                       </div>
-                       <div className="mt-8 p-4 bg-green-500/5 border border-green-500/10 rounded-2xl flex items-center gap-4">
-                          <ShieldCheck className="text-green-500" size={24} />
-                          <div>
-                            <div className="text-[10px] font-black text-green-500 uppercase tracking-widest">ECC_VALIDATED</div>
-                            <div className="text-[9px] text-white/40 font-mono">Uplink data integrity 100%</div>
-                          </div>
-                       </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-6 bg-white/5 rounded-3xl border border-white/10 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4">
+                          <Activity size={16} className="text-primary/20 animate-spin" />
+                        </div>
+                        <h3 className="text-xs font-black text-primary uppercase tracking-widest mb-6">Link Parameters</h3>
+                        <div className="space-y-4">
+                          {[
+                            { label: 'Latency', value: `${obd.status.latency}ms`, status: 'NOMINAL' },
+                            { label: 'Bus Speed', value: '500 kbps', status: 'CAN_HIGH' },
+                            { label: 'Source', value: obd.status.adapter === 'ELM327 NATIVE' ? 'NATIVE_DAEMON' : 'BROWSER_MOCK', status: 'STATUS' },
+                            { label: 'Hardware', value: obd.status.adapter.toUpperCase(), status: 'READY' }
+                          ].map((m, i) => (
+                            <div key={i} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
+                              <div>
+                                <div className="text-[8px] text-white/30 uppercase font-bold">{m.label}</div>
+                                <div className="text-xs font-black text-white">{m.value}</div>
+                              </div>
+                              <span className="text-[8px] font-black text-primary/60 px-2 py-0.5 bg-primary/10 rounded uppercase">{m.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-white/5 rounded-3xl border border-white/10 flex flex-col justify-between">
+                         <div>
+                           <h3 className="text-xs font-black text-white uppercase tracking-widest mb-2">Security Verification</h3>
+                           <p className="text-[10px] text-white/40 font-mono leading-relaxed">
+                             Handshake signed. Every PID request is verified against the ECU access mask to prevent unauthorized command injection.
+                           </p>
+                         </div>
+                         <div className="mt-8 p-4 bg-green-500/5 border border-green-500/10 rounded-2xl flex items-center gap-4">
+                            <ShieldCheck className="text-green-500" size={24} />
+                            <div>
+                              <div className="text-[10px] font-black text-green-500 uppercase tracking-widest">ECC_VALIDATED</div>
+                              <div className="text-[9px] text-white/40 font-mono">Uplink data integrity 100%</div>
+                            </div>
+                         </div>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -28,7 +29,7 @@ import { APP_BLUEPRINT } from '../constants';
 import { useDashboard } from '../store/DashboardContext';
 
 export const BlueprintExplorer: React.FC = () => {
-  const { addLog } = useDashboard();
+  const { addLog } = useAppStore();
   const [activeView, setActiveView] = useState<'map' | 'tips' | 'export'>('map');
   const [showAdminMenu, setShowAdminMenu] = useState(false);
 

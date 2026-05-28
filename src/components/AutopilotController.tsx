@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useEffect, useState, useRef } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -5,14 +6,7 @@ import { Sparkles, Activity, AlertCircle, CheckCircle2, ChevronRight, Play, Squa
 import { cn } from '../lib/utils';
 
 export const AutopilotController: React.FC = () => {
-  const { 
-    isAutopilotActive, 
-    autopilotQueue, 
-    autopilotStatus, 
-    updateAutopilotStatus, 
-    completeAutopilotAction,
-    toggleAutopilot 
-  } = useDashboard();
+  const { isAutopilotActive, autopilotQueue, autopilotStatus, updateAutopilotStatus, completeAutopilotAction, toggleAutopilot } = useAppStore();
 
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
   const [highlightPos, setHighlightPos] = useState<{ x: number, y: number, w: number, h: number } | null>(null);

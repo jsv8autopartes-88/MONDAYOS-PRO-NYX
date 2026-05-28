@@ -186,7 +186,7 @@ export interface DTCRecord {
 export interface OBDConnectionStatus {
   connected: boolean;
   protocol: string;
-  adapter: 'elm327' | 'j2534' | 'stn' | 'none';
+  adapter: 'elm327' | 'j2534' | 'stn' | 'none' | 'ELM327 NATIVE' | string;
   interface: 'usb' | 'bluetooth' | 'wifi' | 'none';
   latency: number;
   voltage: number;

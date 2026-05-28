@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -9,7 +10,8 @@ import { AIWave } from './AIWave';
 import { NeuralService } from '../lib/neuralService';
 
 export const FloatingAssistant: React.FC = () => {
-  const { logs, autopilotStatus, addLog, addNotification, credentials, aiContext, agents, assistantSettings, updateTheme } = useDashboard();
+  const { addNotification, credentials, aiContext, assistantSettings, updateTheme } = useDashboard();
+  const { logs, autopilotStatus, addLog, agents } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
   const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const [input, setInput] = useState('');
@@ -35,6 +37,17 @@ export const FloatingAssistant: React.FC = () => {
       const systemContext = `${aiContext}\n\nYou are answering from a small floating assistant window. Be extremely concise and tech-focused.\n\nContext:\n- Agents: ${agentsInfo}\n- Recent Actions: ${logs.slice(-3).map(l => l.action).join(', ')}`;
       const prompt = `${systemContext}\n\nUSER: ${userMsg}`;
 
+      // TODO(Daemon): Replace NeuralService with WebSocket to local daemon over ws://localhost:3389/neural
+      // Expected Request Payload:
+      // {
+      //   "intent": "assistant_query",
+      //   "data": { "prompt": userMsg, "context": systemContext }
+      // }
+      // Expected Response Payload:
+      // {
+      //   "status": "success",
+      //   "reply": "Neural Assistant Online..."
+      // }
       const result = await NeuralService.generate(prompt);
       
       setMessages(prev => [...prev, { role: 'ai', content: result.content }]);

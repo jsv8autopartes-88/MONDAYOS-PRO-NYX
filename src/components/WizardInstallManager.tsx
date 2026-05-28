@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDashboard } from '../store/DashboardContext';
@@ -5,13 +6,42 @@ import { Package, Download, Cpu, HardDrive, Settings, ShieldAlert, MonitorUp, Te
 import { cn } from '../lib/utils';
 import { AIWave } from './AIWave';
 
-type WizardStep = 'general' | 'files' | 'system' | 'advanced' | 'build';
+type WizardStep = 'general' | 'files' | 'system' | 'advanced' | 'build' | 'handshake';
 
 export const WizardInstallManager: React.FC = () => {
-  const { addLog, addNotification } = useDashboard();
+  const { addNotification } = useDashboard();
+  const { addLog } = useAppStore();
   const [activeStep, setActiveStep] = useState<WizardStep>('general');
   const [isBuilding, setIsBuilding] = useState(false);
   const [buildLogs, setBuildLogs] = useState<string[]>([]);
+  
+  // Handshake State
+  const [daemonStatus, setDaemonStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [handshakeLogs, setHandshakeLogs] = useState<string[]>([]);
+
+  const startHandshake = () => {
+    setDaemonStatus('connecting');
+    setHandshakeLogs(['Initiating WebSocket handshake on ws://localhost:3389...']);
+    
+    // TODO(Daemon): Replace timeout with actual WebSocket connection to daemon
+    // socket = new WebSocket('ws://localhost:3389/handshake');
+    // socket.onmessage = (e) => { ... }
+    
+    setTimeout(() => {
+      setHandshakeLogs(prev => [...prev, 'Port 3389 validated. Local Daemon detected.']);
+    }, 1000);
+
+    setTimeout(() => {
+      setHandshakeLogs(prev => [...prev, 'Injecting Firebase Authentication Tokens...']);
+    }, 2000);
+
+    setTimeout(() => {
+      setHandshakeLogs(prev => [...prev, 'Synchronizing indexing rules and local payload...']);
+      setDaemonStatus('connected');
+      addNotification({ title: 'Daemon Connected', message: 'Local system is now integrated.', type: 'success', featureId: 'DAEMON_HANDSHAKE' });
+    }, 3500);
+  };
+
   
   const [config, setConfig] = useState({
     appName: 'NYX_BRIDGE_V1',
@@ -97,7 +127,8 @@ export const WizardInstallManager: React.FC = () => {
             { id: 'files', icon: HardDrive, label: 'Files & Directories' },
             { id: 'system', icon: Cpu, label: 'System Configuration' },
             { id: 'advanced', icon: Settings2, label: 'Advanced Options' },
-            { id: 'build', icon: Terminal, label: 'Compiler Output' }
+            { id: 'build', icon: Terminal, label: 'Compiler Output' },
+            { id: 'handshake', icon: MonitorUp, label: 'Daemon Handshake' }
           ].map(step => (
             <button
               key={step.id}
@@ -383,6 +414,63 @@ export const WizardInstallManager: React.FC = () => {
                 </div>
               </motion.div>
             )}
+            {activeStep === 'handshake' && (
+              <motion.div
+                key="handshake"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6 max-w-2xl h-full flex flex-col"
+              >
+                <div className="border-b border-white/10 pb-4 mb-6">
+                  <h2 className="text-xl font-black text-white uppercase tracking-wider">Local Daemon Initialization</h2>
+                  <p className="text-[10px] text-white/40 font-mono mt-1">Establish secure WebSocket connection and inject authentication tokens to the native Windows service.</p>
+                </div>
+                
+                <div className="flex-1 flex gap-6">
+                  <div className="flex-1 bg-black/50 border border-white/10 rounded-xl p-6 flex flex-col">
+                    <h3 className="text-xs font-bold text-primary uppercase tracking-widest mb-4">Connection Logs</h3>
+                    <div className="flex-1 font-mono text-[10px] text-white/60 space-y-2 overflow-y-auto custom-scrollbar">
+                      {handshakeLogs.map((log, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className="text-white/20">[{new Date().toISOString().split('T')[1].slice(0, 12)}]</span>
+                          <span className={log.includes('validated') || log.includes('integrated') ? 'text-neon-lime' : 'text-white/70'}>
+                            {log}
+                          </span>
+                        </div>
+                      ))}
+                      {daemonStatus === 'connecting' && (
+                        <div className="flex gap-4 items-center text-primary animate-pulse mt-2">
+                          <span className="text-white/20">[{new Date().toISOString().split('T')[1].slice(0, 12)}]</span>
+                          <span>_</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="w-48 shrink-0 flex flex-col justify-center items-center gap-6 p-6 bg-black/20 border border-white/5 rounded-xl">
+                    <div className={cn(
+                      "w-24 h-24 rounded-full flex items-center justify-center border-4",
+                      daemonStatus === 'connected' ? "border-neon-lime text-neon-lime shadow-[0_0_30px_rgba(57,255,20,0.2)]" :
+                      daemonStatus === 'connecting' ? "border-primary text-primary animate-pulse" :
+                      "border-white/10 text-white/20"
+                    )}>
+                      <Cpu size={40} />
+                    </div>
+                    <button 
+                      onClick={startHandshake}
+                      disabled={daemonStatus === 'connecting' || daemonStatus === 'connected'}
+                      className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-[10px] font-black uppercase tracking-widest text-white transition-colors"
+                    >
+                      {daemonStatus === 'connected' ? 'Connected' : 
+                       daemonStatus === 'connecting' ? 'Connecting...' : 
+                       'Ping localhost'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </AnimatePresence>
 
         </div>

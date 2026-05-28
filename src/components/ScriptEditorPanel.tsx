@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -25,7 +26,7 @@ import { NeuralEditor } from './NeuralEditor';
 import { AppFile } from '../types';
 
 export const ScriptEditorPanel: React.FC = () => {
-  const { files, addFile, updateFile, deleteFile, addLog } = useDashboard();
+  const { files, addFile, updateFile, deleteFile, addLog } = useAppStore();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'script' | 'json' | 'md'>('all');
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);

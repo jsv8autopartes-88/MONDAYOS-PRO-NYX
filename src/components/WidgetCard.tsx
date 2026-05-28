@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Settings, Maximize2, Trash2, Play, Code, Save } from 'lucide-react';
@@ -17,7 +18,7 @@ interface WidgetCardProps {
 }
 
 export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
-  const { updateWidget, deleteWidget, addLog, addMission, sendCommand } = useDashboard();
+  const { updateWidget, deleteWidget, addLog, addMission, sendCommand } = useAppStore();
   const [isEditing, setIsEditing] = useState(false);
   const [code, setCode] = useState(widget.code);
   const [data, setData] = useState<any>(null);

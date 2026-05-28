@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { Globe, Plus, ExternalLink, Trash2 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
@@ -9,7 +10,8 @@ interface LinkItem {
 }
 
 export const LinksPanel: React.FC = () => {
-  const { links, addLink, deleteLink, addLog, searchQuery } = useDashboard();
+  const { searchQuery } = useDashboard();
+  const { links, addLink, deleteLink, addLog } = useAppStore();
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
 

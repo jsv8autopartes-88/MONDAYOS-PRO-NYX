@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -16,6 +16,16 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
+  }
+};
+
+export const signInDevBypass = async () => {
+  try {
+    const result = await signInAnonymously(auth);
+    return result.user;
+  } catch (error) {
+    console.error("Error with Anonymous Auth Bypass", error);
     throw error;
   }
 };

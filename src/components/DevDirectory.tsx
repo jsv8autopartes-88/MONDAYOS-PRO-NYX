@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -88,7 +89,7 @@ const APP_MODULES: ModuleInfo[] = [
     description: 'Núcleo de orquestación para el manejo de agentes autónomos, misiones y evolución de habilidades.',
     previewDesc: 'Panel multitab con Navigation Rail, Mission Control y Visualizador de Evolución.',
     code: '// Fragmento de AgentControllerPanel.tsx\nexport const AgentControllerPanel: React.FC = () => {\n  const [activeTab, setActiveTab] = useState("nodes");\n  // ... orchestration logic\n}',
-    fullCode: `import React, { useState, useEffect } from 'react';\nimport { Cpu, Target, Wrench, Zap, Smartphone } from 'lucide-react';\n// ... logic for managing agents via Firestore and D3\nexport const AgentControllerPanel = () => {\n  const { agents, missions } = useDashboard();\n  const [activeTab, setActiveTab] = useState('nodes');\n  return (\n    <div className="flex-1 flex overflow-hidden">\n      {/* Navigation Rail */}\n      <div className="w-20 bg-black/40 border-r border-white/5 ...">...</div>\n    </div>\n  );\n};`,
+    fullCode: `import React, { useState, useEffect } from 'react';\nimport { Cpu, Target, Wrench, Zap, Smartphone } from 'lucide-react';\n// ... logic for managing agents via Firestore and D3\nexport const AgentControllerPanel = () => {\n  const { agents, missions } = useAppStore();\n  const [activeTab, setActiveTab] = useState('nodes');\n  return (\n    <div className="flex-1 flex overflow-hidden">\n      {/* Navigation Rail */}\n      <div className="w-20 bg-black/40 border-r border-white/5 ...">...</div>\n    </div>\n  );\n};`,
     dependencies: ['lucide-react', 'motion/react', 'firebase/firestore', '@google/genai'],
     lastLogs: ['[14:20] Mission adaptive update triggered.', '[14:25] Neural link status synced.'],
     backups: ['BK_ACP_20260420_0700', 'BK_ACP_20260419_1200'],
@@ -225,7 +226,7 @@ const APP_MODULES: ModuleInfo[] = [
     type: 'component',
     description: 'Consola de comandos de bajo nivel con monitoreo de logs en tiempo real.',
     previewDesc: 'Output monospaced con filtrado por severidad y autoscroll.',
-    code: 'export const TerminalPanel = () => {\n  const { logs } = useDashboard();\n  return <div className="font-mono">...</div>\n}',
+    code: 'export const TerminalPanel = () => {\n  const { logs } = useAppStore();\n  return <div className="font-mono">...</div>\n}',
     fullCode: `import React, { useRef, useEffect } from 'react';\nimport { Terminal as TerminalIcon, Search, Trash2 } from 'lucide-react';\n// ... Full Terminal implementation with virtual scroll support`,
     dependencies: ['lucide-react', 'prismjs'],
     lastLogs: ['[15:45] Log buffer cleared.', '[15:48] Filter: "ERROR" applied.'],

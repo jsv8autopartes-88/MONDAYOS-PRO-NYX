@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React from 'react';
 import { motion } from 'motion/react';
 import { Network, Server, User, Zap, ChevronRight, Activity } from 'lucide-react';
@@ -6,7 +7,7 @@ import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
 
 export const AgentTreeView: React.FC = () => {
-  const { agents } = useDashboard();
+  const { agents } = useAppStore();
 
   return (
     <div className="space-y-4 p-4 overflow-y-auto max-h-[600px] custom-scrollbar">

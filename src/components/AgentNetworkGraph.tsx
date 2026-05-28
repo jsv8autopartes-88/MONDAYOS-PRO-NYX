@@ -18,6 +18,14 @@ export const AgentNetworkGraph: React.FC<{ agents: RemoteAgent[]; onSelect?: (id
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // TODO(Daemon): D3 topology graph should subscribe to ws://localhost:3389/topology
+  // Expected Event Payload from Daemon:
+  // {
+  //   "intent": "swarm_topology_update",
+  //   "nodes": [ { "id": "agent-1", "status": "online" } ],
+  //   "links": [ { "source": "controller", "target": "agent-1" } ]
+  // }
+  
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
 

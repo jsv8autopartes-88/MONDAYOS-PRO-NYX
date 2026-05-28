@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useRef, useEffect } from 'react';
 import { Terminal as TerminalIcon, ChevronRight, Play, Trash2, Activity, Globe, Wifi } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
@@ -7,7 +8,8 @@ import { db } from '../lib/firebase';
 import { AgentCommand } from '../types';
 
 export const TerminalPanel: React.FC = () => {
-  const { widgets, logs, isCarMode, toggleCarMode, addLog, shortcuts, addShortcut, removeShortcut, files, sendCommand, agents, user } = useDashboard();
+  const { isCarMode, toggleCarMode, shortcuts, addShortcut, removeShortcut, user } = useDashboard();
+  const { widgets, logs, addLog, files, sendCommand, agents } = useAppStore();
   const [history, setHistory] = useState<string[]>(['OmniDash Terminal v1.1.0', 'Type "help" for a list of commands.']);
   const [input, setInput] = useState('');
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);

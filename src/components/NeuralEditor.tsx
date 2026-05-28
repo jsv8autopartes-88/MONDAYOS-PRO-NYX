@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { 
@@ -40,7 +41,8 @@ export const NeuralEditor: React.FC<NeuralEditorProps> = ({
   onSave,
   onClose 
 }) => {
-  const { addLog, addNotification } = useDashboard();
+  const { addNotification } = useDashboard();
+  const { addLog } = useAppStore();
   const [code, setCode] = useState(initialCode);
   const [language, setLanguage] = useState(initialLanguage);
   const [logs, setLogs] = useState<{ type: 'info' | 'error' | 'success'; message: string; timestamp: number }[]>([]);

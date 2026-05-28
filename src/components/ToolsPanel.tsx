@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useCallback } from 'react';
 import { ImageIcon, PenTool, Scissors, ImagePlus, Layers, Download, Trash2 } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
@@ -29,7 +30,7 @@ const ToolCard: React.FC<ToolProps> = ({ title, description, icon: Icon, color, 
 );
 
 export const ToolsPanel: React.FC<{ type: 'media' | 'vector' }> = ({ type }) => {
-  const { assets, addAsset, deleteAsset } = useDashboard();
+  const { assets, addAsset, deleteAsset } = useAppStore();
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();

@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -22,7 +23,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db_local } from '../lib/localDB';
 
 export const AuditSystem: React.FC = () => {
-  const { addLog, searchQuery } = useDashboard();
+  const { searchQuery } = useDashboard();
+  const { addLog } = useAppStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const query = (searchQuery || '').toLowerCase();
   

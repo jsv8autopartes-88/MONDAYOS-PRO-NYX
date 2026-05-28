@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import ReactMarkdown from 'react-markdown';
@@ -5,7 +6,8 @@ import { Edit3, Eye, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export const NotesPanel: React.FC = () => {
-  const { notes, updateNotes, addLog } = useDashboard();
+  const { notes, updateNotes } = useDashboard();
+  const { addLog } = useAppStore();
   const [viewMode, setViewMode] = React.useState<'edit' | 'preview' | 'split'>('preview');
 
   const handleSave = () => {

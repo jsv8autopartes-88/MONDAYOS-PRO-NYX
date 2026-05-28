@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useEffect } from 'react';
 import { 
   Bot, 
@@ -37,6 +38,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDashboard } from '../store/DashboardContext';
 import { cn } from '../lib/utils';
 import { AgentCommand, AgentMission, AgentSkill } from '../types';
+import { NeuralService } from '../lib/neuralService';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -53,32 +55,34 @@ try {
 const ai = new GoogleGenAI({ apiKey: envKeyTop });
 
 export const AgentControllerPanel: React.FC = () => {
-  const { 
-    agents, 
-    missions, 
-    skills, 
-    reportFiles,
-    generateSystemReport,
-    user, 
-    sendCommand, 
-    deleteAgent, 
-    addMission, 
-    updateMission, 
-    deleteMission, 
-    addSkill, 
-    updateSkill,
-    deleteSkill,
-    isAutopilotActive,
-    toggleAutopilot,
-    addAutopilotTask,
-    clearAutopilotQueue,
-    autopilotQueue,
-    autopilotStatus,
-    searchQuery,
-    updateAgent
-  } = useDashboard();
+  const { user, searchQuery } = useDashboard();
+  const { agents, missions, skills, reportFiles, generateSystemReport, sendCommand, deleteAgent, addMission, updateMission, deleteMission, addSkill, updateSkill, deleteSkill, isAutopilotActive, toggleAutopilot, addAutopilotTask, clearAutopilotQueue, autopilotQueue, autopilotStatus, updateAgent } = useAppStore();
   
   const [activeTab, setActiveTab] = useState<'nodes' | 'missions' | 'skills' | 'evolution' | 'directory' | 'setup' | 'autopilot' | 'reports'>('nodes');
+  const [aiAutopilotPrompt, setAiAutopilotPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleAiAutomation = async () => {
+    if (!aiAutopilotPrompt.trim()) return;
+    setIsAiGenerating(true);
+    try {
+      const systemPrompt = `You are an AI UI Automation Agent. The user wants to: "${aiAutopilotPrompt}". 
+Return a JSON array of AutopilotAction objects to perform this task in the app.
+Available action types: 'click' (needs target selector like .glass-card button), 'input' (needs target selector and value), 'navigation' (needs value: 'home', 'agents', 'missions', 'ai', 'files', 'terminal', 'notes', 'tools', 'settings'), 'wait' (needs value in ms). Make sure it's valid JSON. Do not return markdown formatted code blocks, return raw text parseable by JSON.parse. Example: [{"type":"navigation","value":"notes"},{"type":"wait","value":"500"}]`;
+      const response = await NeuralService.generate(systemPrompt, 'gemini');
+      let text = response.content.trim();
+      if (text.startsWith('\`\`\`json')) text = text.replace(/^\`\`\`json\n/, '').replace(/\n\`\`\`$/, '');
+      const actions = JSON.parse(text);
+      if (Array.isArray(actions) && actions.length > 0) {
+        addAutopilotTask(actions);
+      }
+      setAiAutopilotPrompt('');
+    } catch (error) {
+      console.error('Failed to parse or generate autopilot actions:', error);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const handleNav = (e: any) => {
@@ -203,6 +207,16 @@ export const AgentControllerPanel: React.FC = () => {
 
   const handleSendCommand = async () => {
     if (!selectedAgentId || !inputCmd.trim()) return;
+    
+    // TODO(Daemon): Route commands through local WebSocket proxy instead of Firebase for lowest latency
+    // Expected Payload:
+    // {
+    //   "intent": "exec_cmd",
+    //   "payload": {
+    //     "agentId": selectedAgentId,
+    //     "cmd": inputCmd.trim()
+    //   }
+    // }
     await sendCommand(selectedAgentId, inputCmd.trim());
     setInputCmd('');
   };
@@ -1344,7 +1358,26 @@ export const AgentControllerPanel: React.FC = () => {
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary">Live_Automation_Stack</h3>
                   <span className="text-[9px] text-white/20 font-mono italic">PENDING_OPERATIONS: {autopilotQueue.length}</span>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={aiAutopilotPrompt} 
+                    onChange={e => setAiAutopilotPrompt(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAiAutomation()}
+                    placeholder="E.g., Open terminal, write a command, then go to home..." 
+                    className="flex-1 bg-black/40 border border-primary/20 rounded-lg px-4 py-2 text-[10px] text-primary focus:outline-none focus:border-primary placeholder-primary/20 font-mono h-10"
+                  />
+                  <button 
+                    onClick={handleAiAutomation}
+                    disabled={isAiGenerating || !aiAutopilotPrompt.trim()}
+                    className="px-4 py-2 bg-primary text-black rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-50 h-10 flex flex-col justify-center transition-all hover:bg-neon-lime"
+                  >
+                    {isAiGenerating ? 'Generating...' : 'Execute AI'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 mt-4">
                   {autopilotQueue.slice(0, 5).map((action, i) => (
                     <div key={action.id} className="flex items-center gap-4 p-3 bg-white/5 border border-white/5 rounded-xl">
                       <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center text-xs font-bold text-white/40">

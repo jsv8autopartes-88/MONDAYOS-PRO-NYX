@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useEffect } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,13 +59,8 @@ const ToastNotification: React.FC<{ notif: AppNotification }> = ({ notif }) => {
 };
 
 export const GuidanceSystem: React.FC = () => {
-  const { 
-    notifications, 
-    clearNotification, 
-    activeTutorial, 
-    setTutorial,
-    reportFiles
-  } = useDashboard();
+  const { notifications, clearNotification, activeTutorial, setTutorial } = useDashboard();
+  const { reportFiles } = useAppStore();
 
   const getFeatureDocs = (featureId: string) => {
     // We can pull documentation from the reportFiles index

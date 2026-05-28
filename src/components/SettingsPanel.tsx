@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { 
@@ -35,7 +36,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 type SettingsTab = 'general' | 'neural' | 'remote' | 'vault' | 'visual' | 'assistant';
 
 export const SettingsPanel: React.FC = () => {
-  const { credentials, updateCredential, addLog, addNotification, theme, updateTheme, user, assistantSettings, updateAssistantSettings } = useDashboard();
+  const { credentials, updateCredential, addNotification, theme, updateTheme, user, assistantSettings, updateAssistantSettings } = useDashboard();
+  const { addLog } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');

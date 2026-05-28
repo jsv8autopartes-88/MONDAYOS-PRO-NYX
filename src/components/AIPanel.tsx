@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState, useRef, useEffect } from 'react';
 import { useDashboard } from '../store/DashboardContext';
 import { Send, Bot, User, Sparkles, Brain, Image as ImageIcon, Mic, Search as SearchIcon, X, Loader2, Volume2, Zap } from 'lucide-react';
@@ -8,10 +9,12 @@ import { cn } from '../lib/utils';
 import { NeuralService, AIProvider } from '../lib/neuralService';
 
 export const AIPanel: React.FC = () => {
-  const { credentials, addLog, aiContext, updateAiContext, searchQuery, agents, logs, addNotification } = useDashboard();
+  const { credentials, aiContext, updateAiContext, searchQuery, addNotification } = useDashboard();
+  const { addLog, agents, logs, addAutopilotTask } = useAppStore();
   const [provider, setProvider] = useState<AIProvider>('gemini');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string, type?: 'text' | 'image' }[]>([]);
+  const [isUplinkEnabled, setIsUplinkEnabled] = useState(true);
   
   const filteredMessages = messages.filter(msg => {
     const query = (searchQuery || '').toLowerCase();
@@ -160,13 +163,53 @@ export const AIPanel: React.FC = () => {
         }
       } else {
         const agentsInfo = agents.map(a => `${a.name}(${a.status})`).join(', ');
-        const systemContext = `${aiContext}\n\nDASHBOARD_CURRENT_STATE:\n- Agents: ${agentsInfo}\n- Recent Logs: ${logs.slice(-5).map(l => l.details).join('; ')}\n- Search Query: ${searchQuery || 'None'}`;
         
+        let systemContext = `${aiContext}\n\nDASHBOARD_CURRENT_STATE:\n- Agents: ${agentsInfo}\n- Recent Logs: ${logs.slice(-5).map(l => l.details).join('; ')}\n- Search Query: ${searchQuery || 'None'}`;
+        
+        if (isUplinkEnabled) {
+          systemContext += `
+\n[SYSTEM_RULE: AUTOPILOT UPLINK ENABLED]
+If the user's input asks you to perform an action, click on items, fill out inputs, clear parameters, open logs, look at OBD, play or skip modules, you MUST output a valid JSON code block with system actions to fulfill their request. Start the block with \`\`\`json autopilot and end with \`\`\`.
+Do not output anything else in that block. Let us know what you did in your main conversational text response. Keep it friendly and concise!
+Example snippet to include in your markdown:
+\`\`\`json autopilot
+[
+  {"type": "navigation", "value": "obdscan"},
+  {"type": "click", "target": "Connect Adapter"},
+  {"type": "wait", "value": "1500"},
+  {"type": "navigation", "value": "home"}
+]
+\`\`\`
+Allowed values for navigation "value": 'home', 'agents', 'ai', 'files', 'notes', 'scripts', 'links', 'autopilot', 'obdscan', 'remote', 'audit', 'dev', 'terminal', 'blueprint', 'installer', 'settings', 'logs'.
+`;
+        }
+
         const finalPrompt = `${systemContext}\n\nUSER_REQUEST: ${userMessage}`;
         const response = await NeuralService.generate(finalPrompt, provider);
 
         setMessages(prev => [...prev, { role: 'ai', content: response.content }]);
         addLog('AI_CHAT', `[${provider}] AI responded to: ${userMessage.substring(0, 30)}...`);
+
+        // Check and parse Autopilot uplink triggers
+        if (isUplinkEnabled) {
+          const match = response.content.match(/```json\s+autopilot\s*([\s\S]*?)\s*```/);
+          if (match && match[1]) {
+            try {
+              const actions = JSON.parse(match[1]);
+              if (Array.isArray(actions) && actions.length > 0) {
+                addAutopilotTask(actions);
+                addNotification({
+                  title: 'AI_AUTOPILOT_TRIGGERED',
+                  message: `Autopilot uplink configured with ${actions.length} automations successfully.`,
+                  type: 'success',
+                  featureId: 'AUTOPILOT_CONTROLLER'
+                });
+              }
+            } catch (e) {
+              console.error("AI Autopilot parsing failure:", e);
+            }
+          }
+        }
       }
     } catch (error: any) {
       setMessages(prev => [...prev, { role: 'ai', content: `Neural Error: ${error.message}` }]);
@@ -278,16 +321,37 @@ export const AIPanel: React.FC = () => {
             </div>
           </div>
         </div>
-        <button 
-          onClick={() => setShowMemory(!showMemory)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5",
-            showMemory ? "bg-primary text-black shadow-[0_0_15px_rgba(207,248,12,0.3)]" : "bg-white/5 hover:bg-white/10 text-white/60"
-          )}
-        >
-          <Brain size={14} />
-          Context Memory
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              setIsUplinkEnabled(!isUplinkEnabled);
+              addNotification({
+                title: 'AUTOPILOT_AI_UPLINK_STATUS',
+                message: isUplinkEnabled ? 'Autopilot automation triggers disabled.' : 'Adaptive autopilot real AI stream parser enabled.',
+                type: 'info',
+                featureId: 'SPEECH_RECOGNITION'
+              });
+            }}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 active:shadow-[0_0_15px_rgba(255,255,255,0.7)]",
+              isUplinkEnabled ? "bg-neon-lime text-black shadow-[0_0_15px_rgba(212,255,0,0.3)]" : "bg-white/5 hover:bg-white/10 text-white/60"
+            )}
+          >
+            <Zap size={14} className={cn(isUplinkEnabled && "animate-pulse")} />
+            AI Uplink: {isUplinkEnabled ? 'ACTIVE' : 'OFF'}
+          </button>
+
+          <button 
+            onClick={() => setShowMemory(!showMemory)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 active:shadow-[0_0_15px_rgba(255,255,255,0.7)]",
+              showMemory ? "bg-primary text-black shadow-[0_0_15px_rgba(207,248,12,0.3)]" : "bg-white/5 hover:bg-white/10 text-white/60"
+            )}
+          >
+            <Brain size={14} />
+            Context Memory
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 glass-card flex flex-col overflow-hidden bg-black/20 relative border-white/5">

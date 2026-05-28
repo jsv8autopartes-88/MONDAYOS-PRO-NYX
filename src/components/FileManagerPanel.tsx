@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React, { useState } from 'react';
 import { Folder, FileText, Code, FileJson, Image as ImageIcon, Plus, Trash2, Save, Play, Sparkles, Activity } from 'lucide-react';
 import { useDashboard } from '../store/DashboardContext';
@@ -16,7 +17,8 @@ import 'prismjs/themes/prism-tomorrow.css';
 import { cn } from '../lib/utils';
 
 export const FileManagerPanel: React.FC = () => {
-  const { files, addFile, updateFile, deleteFile, addLog, searchQuery, agents, widgets, addNotification } = useDashboard();
+  const { searchQuery, addNotification } = useDashboard();
+  const { files, addFile, updateFile, deleteFile, addLog, agents, widgets } = useAppStore();
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState<'script' | 'md' | 'json' | 'svg'>('script');
@@ -31,11 +33,15 @@ export const FileManagerPanel: React.FC = () => {
   const activeFile = files.find(f => f.id === activeFileId);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // TODO(Daemon): Listen for filesystem indexing updates from local daemon on ws://localhost:3389/indexing
+  // When daemon finishes scanning local directories, update files state tree with metadata
+  
   const handleNeuralCleanup = async () => {
     if (!activeFile) return;
     setIsProcessing(true);
     addLog('NEURAL_PROCESS', `Initializing cleanup for asset: ${activeFile.name}`);
     
+    // TODO(Daemon): Hook this Neural Cleanup action into the daemon's local image processing AI over ws://localhost:3389/neural
     try {
       // In a real scenario with blobs: 
       // const blob = await removeBackground(imageSrc);

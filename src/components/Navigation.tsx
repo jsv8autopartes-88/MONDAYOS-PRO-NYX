@@ -1,3 +1,4 @@
+import { useAppStore } from '../store/appStore';
 import React from 'react';
 import { 
   Home, 
@@ -40,7 +41,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { isCarMode, toggleCarMode, addWidget, isAutopilotActive, agents } = useDashboard();
+  const { isCarMode, toggleCarMode } = useDashboard();
+  const { addWidget, isAutopilotActive, agents } = useAppStore();
   const onlineAgents = agents.filter(a => a.status === 'online').length;
 
   const navItems = [
@@ -143,6 +145,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
 import { motion, AnimatePresence } from 'motion/react';
 
+const highlightText = (text: string, highlight: string) => {
+  if (!highlight.trim()) {
+    return text;
+  }
+  const regex = new RegExp(`(${highlight})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) => 
+        part.toLowerCase() === highlight.toLowerCase() ? (
+          <span key={i} className="text-black bg-primary px-0.5 rounded-sm">{part}</span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+};
+
 // At the top where TopBar is defined
 export const TopBar: React.FC = () => {
   const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady, notifications, clearNotification, setTutorial } = useDashboard();
@@ -184,6 +205,7 @@ export const TopBar: React.FC = () => {
 
       <div className="flex items-center gap-6 flex-1 max-w-md mx-8 relative">
         <div className="relative flex-1 group">
+          {/* TODO(Daemon): Link this search input directly to local indexing engine via WS for instantaneous fuzzy file search outside the PWA */}
           <Search className={cn("absolute left-3 top-1/2 -translate-y-1/2 transition-colors", searchQuery ? "text-primary animate-pulse" : "text-neutral-500")} size={14} />
           <input 
             type="text" 
@@ -233,8 +255,8 @@ export const TopBar: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <item.icon size={16} className="text-white/40 group-hover:text-primary transition-colors" />
                         <div>
-                          <p className="text-[11px] font-bold text-white uppercase tracking-wider">{item.label}</p>
-                          <p className="text-[9px] text-white/40 font-mono italic">module://{item.id}</p>
+                          <p className="text-[11px] font-bold text-white uppercase tracking-wider">{highlightText(item.label, searchQuery)}</p>
+                          <p className="text-[9px] text-white/40 font-mono italic">module://{highlightText(item.id, searchQuery)}</p>
                         </div>
                       </div>
                       <span className="text-[9px] bg-primary/20 text-primary px-2 py-0.5 rounded font-black opacity-0 group-hover:opacity-100 transition-opacity">
@@ -250,6 +272,24 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Barra de Estado Físico (Telemetry Stub) */}
+        <div className="flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono mr-2">
+          {/* TODO(Daemon): Provide WS battery, temp, and network latency over `ws://localhost:3389/telemetry` */}
+          <div className="flex items-center gap-1.5" title="Local Daemon Status">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-lime animate-pulse" />
+            <span className="text-white/80">Daemon: 12ms</span>
+          </div>
+          <div className="w-px h-3 bg-white/20" />
+          <div className="flex items-center gap-1.5 text-white/50">
+            <span>BATT: 84%</span>
+          </div>
+          <div className="w-px h-3 bg-white/20" />
+          <div className="flex items-center gap-1.5 text-primary">
+            <Zap size={10} />
+            <span>OBD: STB</span>
+          </div>
+        </div>
+
         <button 
           onClick={() => setIsAdminOpen(true)}
           className="px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
