@@ -24,6 +24,17 @@ interface AppStoreState {
     agentMode: 'assisted' | 'guided' | 'autonomous';
   };
   
+  // --- NYX DAEMON CORE ---
+  isNyxConnected: boolean;
+  daemonPort: number;
+  telemetry: {
+    battery: number;
+    latency: number;
+    status: string;
+  };
+  setNyxConnection: (status: boolean, port?: number) => void;
+  updateTelemetry: (data: { battery?: number; latency_ms?: number; status?: string }) => void;
+  
   // Actions
   addLog: (action: string, details: string, previousState?: any) => void;
   rollback: (logId: string) => void;
@@ -87,7 +98,7 @@ const INITIAL_WIDGETS: Widget[] = [
     title: 'Network Traffic',
     type: 'custom',
     x: 1, y: 0, w: 1, h: 1,
-    code: 'return { renderType: "metric", value: (Math.random() * 5).toFixed(2), unit: "MB/s", label: "Neural Link Bandwidth" }',
+    code: 'return { renderType: "metric", value: api.isNyxConnected ? (3 + Math.random() * 2).toFixed(2) : "0.00", unit: "MB/s", label: api.isNyxConnected ? "Neural Link Bandwidth" : "Daemon Offline" }',
     config: {},
     isVisible: true
   },
@@ -96,7 +107,7 @@ const INITIAL_WIDGETS: Widget[] = [
     title: 'Action Latency',
     type: 'chart',
     x: 0, y: 1, w: 2, h: 1,
-    code: `return {\n  renderType: 'chart',\n  chartData: [\n    { name: 'T-20', value: 40 },\n    { name: 'T-15', value: 30 },\n    { name: 'T-10', value: 60 },\n    { name: 'T-5', value: 45 },\n    { name: 'NOW', value: Math.floor(Math.random() * 40) + 30 }\n  ]\n}`,
+    code: "const currentLatency = api.isNyxConnected ? api.telemetry.latency : 0; return {\n  renderType: 'chart',\n  chartData: [\n    { name: 'T-20', value: api.isNyxConnected ? 25 : 0 },\n    { name: 'T-15', value: api.isNyxConnected ? 18 : 0 },\n    { name: 'T-10', value: api.isNyxConnected ? 32 : 0 },\n    { name: 'T-5', value: api.isNyxConnected ? 15 : 0 },\n    { name: 'NOW', value: currentLatency }\n  ]\n}",
     config: {},
     isVisible: true
   },
@@ -105,7 +116,7 @@ const INITIAL_WIDGETS: Widget[] = [
     title: 'Uplink Topology',
     type: 'map',
     x: 2, y: 0, w: 1, h: 2,
-    code: `return {\n  renderType: 'html',\n  html: '<div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(212,255,0,0.2); width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; color: #d4ff00; font-family: monospace;"><div style="font-size: 24px; margin-bottom: 8px; animation: pulse 2s infinite;">🌐</div><div style="font-size: 10px; text-transform: uppercase; letter-spacing: 2px;">Core_Hub_Active</div><div style="margin-top: 10px; font-size: 9px; color: #888; text-align: center;">LOCAL_NODE: 127.0.0.1<br/>UPLINK: CLOUD_SECURE</div></div>'\n}`,
+    code: "const statusColor = api.isNyxConnected ? '#d4ff00' : '#ef4444'; const statusText = api.isNyxConnected ? 'Core_Hub_Active' : 'Offline_Stale'; return {\n  renderType: 'html',\n  html: '<div style=\"background: rgba(0,0,0,0.4); border: 1px solid ' + statusColor + '33; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 12px; color: ' + statusColor + '; font-family: monospace;\"><div style=\"font-size: 24px; margin-bottom: 8px; animation: pulse 2s infinite;\">🌐</div><div style=\"font-size: 10px; text-transform: uppercase; letter-spacing: 2px;\">' + statusText + '</div><div style=\"margin-top: 10px; font-size: 9px; color: #888; text-align: center;\">LOCAL_NODE: 127.0.0.1<br/>UPLINK: ' + (api.isNyxConnected ? 'DAEMON_ESTABLISHED' : 'CLOUD_STANDBY') + '</div></div>'\n}",
     config: {},
     isVisible: true
   },
@@ -146,6 +157,21 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     isScanning: false,
     agentMode: 'assisted'
   },
+
+  // --- NYX DAEMON INITIAL STATE ---
+  isNyxConnected: false,
+  daemonPort: 8001,
+  telemetry: { battery: 100, latency: 0, status: 'offline' },
+  
+  setNyxConnection: (status, port = 8001) => set({ isNyxConnected: status, daemonPort: port }),
+  
+  updateTelemetry: (data) => set((state) => ({
+    telemetry: {
+      battery: data.battery ?? state.telemetry.battery,
+      latency: data.latency_ms ?? state.telemetry.latency,
+      status: data.status ?? state.telemetry.status
+    }
+  })),
 
   addLog: (action, details, previousState) => {
     const newLog: ActionLog = {

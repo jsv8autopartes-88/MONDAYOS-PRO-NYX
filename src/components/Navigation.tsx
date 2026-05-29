@@ -167,6 +167,7 @@ const highlightText = (text: string, highlight: string) => {
 // At the top where TopBar is defined
 export const TopBar: React.FC = () => {
   const { isCarMode, searchQuery, setSearchQuery, user, login, logout, isAuthReady, notifications, clearNotification, setTutorial } = useDashboard();
+  const { isNyxConnected, telemetry } = useAppStore();
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [isAdminOpen, setIsAdminOpen] = React.useState(false);
   const unreadCount = notifications.length;
@@ -272,21 +273,22 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Barra de Estado Físico (Telemetry Stub) */}
+        {/* Barra de Estado Físico (Telemetry Hooked) */}
         <div className="flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono mr-2">
-          {/* TODO(Daemon): Provide WS battery, temp, and network latency over `ws://localhost:3389/telemetry` */}
           <div className="flex items-center gap-1.5" title="Local Daemon Status">
-            <div className="w-1.5 h-1.5 rounded-full bg-neon-lime animate-pulse" />
-            <span className="text-white/80">Daemon: 12ms</span>
+            <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isNyxConnected ? "bg-neon-lime" : "bg-red-500")} />
+            <span className={isNyxConnected ? "text-white/80" : "text-white/30"}>
+              {isNyxConnected ? `Daemon: ${telemetry.latency}ms` : 'Daemon: Offline'}
+            </span>
           </div>
           <div className="w-px h-3 bg-white/20" />
           <div className="flex items-center gap-1.5 text-white/50">
-            <span>BATT: 84%</span>
+            <span>BATT: {isNyxConnected ? `${telemetry.battery}%` : '---'}</span>
           </div>
           <div className="w-px h-3 bg-white/20" />
           <div className="flex items-center gap-1.5 text-primary">
-            <Zap size={10} />
-            <span>OBD: STB</span>
+            <Zap size={10} className={isNyxConnected ? "animate-pulse" : ""} />
+            <span>OBD: {isNyxConnected ? "STB" : "OFF"}</span>
           </div>
         </div>
 

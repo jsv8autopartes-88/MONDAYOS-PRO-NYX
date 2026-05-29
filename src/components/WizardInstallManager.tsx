@@ -1,16 +1,18 @@
 import { useAppStore } from '../store/appStore';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDashboard } from '../store/DashboardContext';
 import { Package, Download, Cpu, HardDrive, Settings, ShieldAlert, MonitorUp, Terminal, FileCode2, PlaySquare, Settings2, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AIWave } from './AIWave';
+import { useNyxDaemon } from '../hooks/useNyxDaemon';
 
 type WizardStep = 'general' | 'files' | 'system' | 'advanced' | 'build' | 'handshake';
 
 export const WizardInstallManager: React.FC = () => {
   const { addNotification } = useDashboard();
-  const { addLog } = useAppStore();
+  const { addLog, isNyxConnected } = useAppStore();
+  const { connect } = useNyxDaemon();
   const [activeStep, setActiveStep] = useState<WizardStep>('general');
   const [isBuilding, setIsBuilding] = useState(false);
   const [buildLogs, setBuildLogs] = useState<string[]>([]);
@@ -19,27 +21,37 @@ export const WizardInstallManager: React.FC = () => {
   const [daemonStatus, setDaemonStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [handshakeLogs, setHandshakeLogs] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (isNyxConnected) {
+      setDaemonStatus('connected');
+      setHandshakeLogs(prev => {
+        const next = [...prev];
+        if (!next.includes('Port 3389 validated. Local Daemon detected.')) {
+          next.push('Port 3389 validated. Local Daemon detected.');
+        }
+        if (!next.includes('Injecting Firebase Authentication Tokens...')) {
+          next.push('Injecting Firebase Authentication Tokens...');
+        }
+        if (!next.includes('Nyx Core Online - Puertos Abiertos')) {
+          next.push('Nyx Core Online - Puertos Abiertos');
+          addNotification({ 
+            title: 'Daemon Connected', 
+            message: 'Local system is now integrated.', 
+            type: 'success', 
+            featureId: 'DAEMON_HANDSHAKE' 
+          });
+        }
+        return next;
+      });
+    } else {
+      setDaemonStatus(prev => prev === 'connected' ? 'disconnected' : prev);
+    }
+  }, [isNyxConnected, addNotification]);
+
   const startHandshake = () => {
     setDaemonStatus('connecting');
     setHandshakeLogs(['Initiating WebSocket handshake on ws://localhost:3389...']);
-    
-    // TODO(Daemon): Replace timeout with actual WebSocket connection to daemon
-    // socket = new WebSocket('ws://localhost:3389/handshake');
-    // socket.onmessage = (e) => { ... }
-    
-    setTimeout(() => {
-      setHandshakeLogs(prev => [...prev, 'Port 3389 validated. Local Daemon detected.']);
-    }, 1000);
-
-    setTimeout(() => {
-      setHandshakeLogs(prev => [...prev, 'Injecting Firebase Authentication Tokens...']);
-    }, 2000);
-
-    setTimeout(() => {
-      setHandshakeLogs(prev => [...prev, 'Synchronizing indexing rules and local payload...']);
-      setDaemonStatus('connected');
-      addNotification({ title: 'Daemon Connected', message: 'Local system is now integrated.', type: 'success', featureId: 'DAEMON_HANDSHAKE' });
-    }, 3500);
+    connect('/handshake');
   };
 
   

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useNyxDaemon } from './hooks/useNyxDaemon';
 import { DashboardProvider, useDashboard } from './store/DashboardContext';
 import { useAppStore } from './store/appStore';
 import { Sidebar, TopBar } from './components/Navigation';
@@ -1385,6 +1386,13 @@ const DashboardContent: React.FC = () => {
 };
 
 export default function App() {
+  const { connect } = useNyxDaemon();
+
+  useEffect(() => {
+    // Encendemos el radar apuntando al endpoint de telemetría por defecto
+    connect('/telemetry');
+  }, [connect]);
+
   return (
     <DashboardProvider>
       <div className="flex h-screen w-full overflow-hidden">

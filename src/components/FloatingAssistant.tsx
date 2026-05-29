@@ -8,10 +8,12 @@ import Draggable from 'react-draggable';
 import { GoogleGenAI } from '@google/genai';
 import { AIWave } from './AIWave';
 import { NeuralService } from '../lib/neuralService';
+import { useNyxDaemon } from '../hooks/useNyxDaemon';
 
 export const FloatingAssistant: React.FC = () => {
   const { addNotification, credentials, aiContext, assistantSettings, updateTheme } = useDashboard();
   const { logs, autopilotStatus, addLog, agents } = useAppStore();
+  const { sendCommand } = useNyxDaemon();
   const [isOpen, setIsOpen] = useState(false);
   const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const [input, setInput] = useState('');
@@ -31,6 +33,28 @@ export const FloatingAssistant: React.FC = () => {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
+
+    // Interceptor logic: If start exactly with !GO NYX, DO NOT send to general AI API
+    if (userMsg.startsWith('!GO NYX')) {
+      try {
+        if (userMsg.includes('MACRO')) {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'UI_MACRO', image_target: 'target.png' });
+        } else if (userMsg.includes('SCRAPE')) {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'SCRAPE_CATALOG', url: 'https://ejemplo.com', selector: '.price' });
+        } else {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'GENERIC_EXECUTION', command: userMsg });
+        }
+
+        setMessages(prev => [...prev, { role: 'ai', content: '⚙️ [NYX CORE]: Protocolo de ejecución física autorizado. Tomando control del sistema...' }]);
+        addLog('DAEMON_COMMAND', `Executed physical daemon protocol via !GO NYX override`);
+      } catch (err) {
+        console.error(err);
+        setMessages(prev => [...prev, { role: 'ai', content: '⚙️ [NYX CORE]: Fallo de enlace neuronal con el Daemon.' }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     try {
       const agentsInfo = agents.map(a => `${a.name}(${a.status})`).join(', ');

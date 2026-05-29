@@ -5,12 +5,14 @@ import { Send, Bot, User, Sparkles, Brain, Image as ImageIcon, Mic, Search as Se
 import { GoogleGenAI, Type, ThinkingLevel, Modality } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
+import { useNyxDaemon } from '../hooks/useNyxDaemon';
 
 import { NeuralService, AIProvider } from '../lib/neuralService';
 
 export const AIPanel: React.FC = () => {
   const { credentials, aiContext, updateAiContext, searchQuery, addNotification } = useDashboard();
   const { addLog, agents, logs, addAutopilotTask } = useAppStore();
+  const { sendCommand } = useNyxDaemon();
   const [provider, setProvider] = useState<AIProvider>('gemini');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string, type?: 'text' | 'image' }[]>([]);
@@ -128,6 +130,28 @@ export const AIPanel: React.FC = () => {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+
+    // Interceptor logic: If start exactly with !GO NYX, DO NOT send to general AI API
+    if (userMessage.startsWith('!GO NYX')) {
+      try {
+        if (userMessage.includes('MACRO')) {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'UI_MACRO', image_target: 'target.png' });
+        } else if (userMessage.includes('SCRAPE')) {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'SCRAPE_CATALOG', url: 'https://ejemplo.com', selector: '.price' });
+        } else {
+          sendCommand('PROTOCOL_GO_NYX', { task_type: 'GENERIC_EXECUTION', command: userMessage });
+        }
+
+        setMessages(prev => [...prev, { role: 'ai', content: '⚙️ [NYX CORE]: Protocolo de ejecución física autorizado. Tomando control del sistema...' }]);
+        addLog('DAEMON_COMMAND', `Executed physical daemon protocol via !GO NYX override`);
+      } catch (err: any) {
+        console.error(err);
+        setMessages(prev => [...prev, { role: 'ai', content: `⚙️ [NYX CORE]: Fallo de enlace neuronal con el Daemon: ${err.message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     try {
       if (mode === 'image') {

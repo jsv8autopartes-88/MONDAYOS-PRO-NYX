@@ -18,7 +18,7 @@ interface WidgetCardProps {
 }
 
 export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
-  const { updateWidget, deleteWidget, addLog, addMission, sendCommand } = useAppStore();
+  const { updateWidget, deleteWidget, addLog, addMission, sendCommand, isNyxConnected, telemetry } = useAppStore();
   const [isEditing, setIsEditing] = useState(false);
   const [code, setCode] = useState(widget.code);
   const [data, setData] = useState<any>(null);
@@ -28,8 +28,10 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget }) => {
     addMission,
     sendCommand,
     addLog,
-    notify: (title: string, message: string) => addLog('WIDGET_NOTIFY', `${title}: ${message}`)
-  }), [addMission, sendCommand, addLog]);
+    notify: (title: string, message: string) => addLog('WIDGET_NOTIFY', `${title}: ${message}`),
+    isNyxConnected,
+    telemetry
+  }), [addMission, sendCommand, addLog, isNyxConnected, telemetry]);
 
   const executeCode = (codeToRun: string) => {
     try {
